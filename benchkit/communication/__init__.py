@@ -101,7 +101,7 @@ class CommunicationLayer:
             print_output (bool, optional):
                 whether to print the command output on benchkit logs. Defaults to True.
             print_curdir (bool, optional):
-                whether to print the current directoru on benchkit logs. Defaults to True.
+                whether to print the current directory on benchkit logs. Defaults to True.
             timeout (int | None, optional):
                 number of seconds to wait for the command to complete, or None for no timeout.
                 Defaults to None.
@@ -153,7 +153,7 @@ class CommunicationLayer:
             print_output (bool, optional):
                 whether to print the command output on benchkit logs. Defaults to True.
             print_curdir (bool, optional):
-                whether to print the current directoru on benchkit logs. Defaults to True.
+                whether to print the current directory on benchkit logs. Defaults to True.
             timeout (int | None, optional):
                 number of seconds to wait for the command to complete, or None for no timeout.
                 Defaults to None.
