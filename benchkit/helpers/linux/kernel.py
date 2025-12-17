@@ -8,12 +8,14 @@ configuring, compiling and installing.
 import pathlib
 from typing import Dict, Iterable, List
 
+from benchkit.communication import CommunicationLayer
 from benchkit.helpers.linux.build import (
     KernelEntry,
     LinuxBuild,
     Option,
     configure_standard_kernel,
 )
+from benchkit.helpers.version import SemanticVersion
 from benchkit.shell.shell import shell_out
 from benchkit.utils.types import PathType
 
@@ -198,3 +200,87 @@ class GitKernel(Kernel):
     def _get_tag(self) -> str:
         kernel_tag = shell_out("git describe", current_dir=self._repo_path).strip()
         return kernel_tag
+
+
+def get_version(
+    comm_layer: CommunicationLayer,
+) -> SemanticVersion:
+    command: List[str] = ["uname", "-r"]
+    major, minor, patch = map(
+        lambda a: int(a),
+        comm_layer.shell(
+            command=command,
+            print_input=False,
+            print_output=False,
+        )
+        .strip()
+        .split("."),
+    )
+
+    return SemanticVersion(major=major, minor=minor, patch=patch)
+
+
+class NotAnOptionException(Exception):
+    pass
+
+class DotConfig:
+
+    def __init__(self, path: PathType):
+        self._path = path
+
+
+    @property
+    def enabled_options(self): 
+        acc: list[str] = list()
+        with open(self._path, "r") as file:
+            for line in file:
+                if "=" in line:
+                    acc.append(line.split("=")[0])
+        return acc
+
+
+    def set_option(self, option: str, value: str):
+        """
+        Sets the option `option` to `value` regardless of it exists or not
+        """
+        with open(self._path, "r") as file:
+            lines: list[str] = file.readlines()
+
+        line_found: bool = False
+        for i, line in enumerate(lines):
+            if line.startswith(option):
+                lines[i] = f"{option}={value}"
+                line_found = True
+                break
+
+        if not line_found:
+            lines.append(f"{option}={value}")
+
+        with open(self._path, "w") as file:
+            file.writelines(lines)
+        
+    def get_option(self, option: str) -> str:
+        with open(self._path, "r") as file:
+            for line in file.readlines():
+                if line.startswith(option):
+                    return line.split("=")[1].strip()
+
+    def unset_option(self, option: str):
+        """
+        Sets the option `option` to `value` regardless of it exists or not
+        """
+        with open(self._path, "r") as file:
+            lines: list[str] = file.readlines()
+
+        line_found: bool = False
+        for i, line in enumerate(lines):
+            if line.startswith(option):
+                lines = lines[:i] + lines[i+1:] # slicing the list
+                line_found = True
+                break
+
+        if not line_found:
+            raise NotAnOptionException(f"The option : {option} does not exist")
+
+        with open(self._path, "w") as file:
+            file.writelines(lines)
