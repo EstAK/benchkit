@@ -83,11 +83,21 @@ class InitramFS:
 
         if utils is not None:
             for item in pathlib.Path(utils).iterdir():
-                target = initramfs_folder / item.name
+                target: pathlib.Path = initramfs_folder / item.name
+
                 if item.is_dir():
-                    shutil.copytree(item, target, dirs_exist_ok=True)
+                    shutil.copytree(
+                        item,
+                        target,
+                        symlinks=True,
+                        dirs_exist_ok=True,
+                    )
                 else:
-                    shutil.copy2(item, target,follow_symlinks=False)
+                    shutil.copy2(
+                        item,
+                        target,
+                        follow_symlinks=False,
+                    )
 
 
     def compress(
