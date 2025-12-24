@@ -8,6 +8,7 @@ from io import TextIOWrapper
 import pty
 import select
 import os
+import time
 import subprocess
 from typing import BinaryIO, List
 
@@ -34,6 +35,16 @@ class PTYCommLayer(CommunicationLayer):
 
     def start_comm(self):
         self._fd = os.open(self._port, os.O_RDWR | os.O_NOCTTY)
+
+        # consuming the boot log 
+        buf = bytearray()
+        while True:
+            r, _, _ = select.select([self._fd], [], [], 1.0)
+            if not r:
+                break
+            chunk = os.read(self._fd, CHUNK_SIZE)
+            buf.extend(chunk)
+
 
     def close_comm(self):
         #Exception handling here
@@ -160,8 +171,9 @@ class PTYCommLayer(CommunicationLayer):
         if std_input is not None:
             command_str += f"| {std_input}"
 
-        if print_input:
-            print(command_str)  # is that the benchkit logs ?
+
+        if not command_str.endswith("\n"):
+            command_str += "\n"
 
         os.write(self._fd, command_str.encode())
         if self._fd is not None:
@@ -174,8 +186,12 @@ class PTYCommLayer(CommunicationLayer):
                 buf.extend(chunk)
 
             output: str = buf.decode(errors="replace")
+
+            if print_input:
+                output = output.replace(command_str.replace("\n", ""), "")
             if print_output:
                 print(output)
+
             return output
         else:
             raise PTYException("Open the communication before sending a command")

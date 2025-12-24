@@ -15,8 +15,9 @@ if __name__ == "__main__":
         clean_build=False,
     )
 
+    qemu_config.isolcpus([1, 4])
     qemu_config.init = InitBuilder.default()
 
     with qemu_config.spawn() as qemu:
         with qemu.open_pty() as pty:
-            pty.shell(command="ls")
+            str_ = pty.shell(command="ls")

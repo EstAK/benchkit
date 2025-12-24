@@ -14,9 +14,13 @@ from benchkit.communication.pty import CHUNK_SIZE, PTYCommLayer
 from benchkit.utils.types import Environment, PathType, Command
 from pathlib import Path
 
+class QEMUCommException(Exception):
+    pass
+
 class QEMUCommLayer(CommunicationLayer):
     def __init__(self, command: Command) -> None:
         print(command)
+        
         self._command: Command = command # this is most likely not useful
         self._pty_port: PathType | None = None
 
@@ -24,15 +28,16 @@ class QEMUCommLayer(CommunicationLayer):
 
 
     def open_pty(self) -> PTYCommLayer | None:
-        print(self._pty_port)
         if self._pty_port is not None:
-            print("here")
             return PTYCommLayer(port=self._pty_port)
         return None
 
     # kills the process
     def kill(self):
-        pass
+        if self._fd is not None:
+            self._fd.kill()
+        else:
+            raise  QEMUCommException("Tried to kill a non running instance")
 
     def __enter__(self) -> Self:
         self._fd = subprocess.Popen(self._command,
@@ -56,6 +61,7 @@ class QEMUCommLayer(CommunicationLayer):
                 buf += chunk
 
         decoded_buf: str = buf.decode()
+        print(decoded_buf)
         pty = re.search(r"/dev/pts/\d+", decoded_buf)
         if pty:
             self._pty_port = pathlib.Path(pty.group())
