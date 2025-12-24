@@ -57,7 +57,7 @@ class Arch(Enum):
     x86 = "qemu-system-x86_64"
 
 
-class QEMU():
+class QEMUConfig():
     def __init__(
             self,
             number_of_cpus: int,
@@ -76,6 +76,7 @@ class QEMU():
 
         self._number_of_cpus: int
         self._memory: int
+        self._clean_build: bool = clean_build
 
         self._artifacts_dir: pathlib.Path = pathlib.Path(artifacts_dir)
 
@@ -96,35 +97,20 @@ class QEMU():
             self._extra_args.extend(["-append", '"console=ttyS0"'])
 
         try:
-            if clean_build:
+            if self._clean_build and self._artifacts_dir.exists():
                 shutil.rmtree(self._artifacts_dir)
-            os.mkdir(self._artifacts_dir)
+            else:
+                os.mkdir(self._artifacts_dir)
         except FileExistsError:
-            #try:
-            #    os.remove(self._artifacts_dir / "initramfs.cpio.gz")
-            #except FileNotFoundError:
-            #    pass
-            try:
-                os.remove(self._artifacts_dir / "init")
-            except FileNotFoundError:
-                pass
+            print("re-using the previous artifacts")
         except Exception:
             raise Exception("mkdir problem") # TODO make it less retarded
 
         self.initramfs: InitramFS = InitramFS(cwd=self._artifacts_dir)
         self.initramfs.prepare(utilities(self._artifacts_dir))
         self.init: InitBuilder = InitBuilder()
+        self._comm_layer: QEMUCommLayer | None = None
 
-        self._qemu_pty: None | PTYCommLayer = None
-        self._qemu_term: None | QEMUCommLayer = None
-
-    def get_pty(self):
-        if self._qemu_term is not None and (port := self._qemu_term.get_pty_port()) is not None:
-            self._qemu_pty = PTYCommLayer(port=port)
-            return self._qemu_pty
-        else:
-            raise QEMUException("The QEMU machine is not running") 
-    
     def add_minimal_mount_points(self):
         self._mounts.append(MountPoint(what="devtmpfs", _type="devtmpfs", where="/dev"))
         self._mounts.append(MountPoint(what="none", _type="proc", where="/proc"))
@@ -133,14 +119,17 @@ class QEMU():
     def add_mount_point(self,mount_point: MountPoint):
         self._mounts.append(mount_point)
 
-    def _run(self):
+    def spawn(self) -> QEMUCommLayer:
         if self._artifacts_dir.exists():
             for mount_points in self._mounts:
                 self.init.add_command(" ".join(mount_points.mount_cmd))
 
             self.init.build(pathlib.Path(self.initramfs.fs_path) / "init")
-            # self.initrd_args.append(str(self.initramfs.compress()))
-            self.initrd_args += ["build/initramfs.cpio.gz"]
+
+            if self._clean_build:
+                self.initrd_args.append(str(self.initramfs.compress()))
+            else:
+                self.initrd_args += ["build/initramfs.cpio.gz"]
 
             cmd: List[str] = [self._target_arch.value]
             cmd.extend([f"-kernel", str(self._kernel)])
@@ -148,20 +137,6 @@ class QEMU():
 
             cmd.extend(self._extra_args)
 
-            self._qemu_term = QEMUCommLayer(command=cmd)
+            return QEMUCommLayer(command=cmd)
         else:
             raise QEMUException("No artifacts dir")
-
-    def __enter__(self):
-        self._run()
-        return self
-
-    def __exit__(self, exception_type, exception_value, exception_traceback):
-        # TODO ask someone what is the correct procedure here
-        if exception_type is not None:
-            print(f"Exception: {exception_type.__name__}: {exception_value}")
-
-        # this basically should always be True
-        if self._qemu_term is not None:
-            self._qemu_term.kill()
-        # set_tracing_on(tracing_on=False, comm_layer=self.comm_layer)

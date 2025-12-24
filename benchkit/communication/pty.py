@@ -38,7 +38,7 @@ class PTYCommLayer(CommunicationLayer):
     def close_comm(self):
         #Exception handling here
         if self._fd is not None:
-            self._fd.close()
+            os.close(self._fd)
         else:
             raise PTYException("The comm layer was manually closed or something else smh")
         
@@ -46,6 +46,7 @@ class PTYCommLayer(CommunicationLayer):
         # open and close file descriptors on demand to not maintain a fd opened for nothing
         if self._fd is None:
             self.start_comm()
+            return self
         else:
             raise PTYException("The PTY was already initialized or failed to properly close")
 
@@ -99,7 +100,7 @@ class PTYCommLayer(CommunicationLayer):
         shell: bool = False,
         print_input: bool = True,
         print_output: bool = True,
-        print_curdir: bool = True,
+        print_curdir: bool = False,
         timeout: int = 1,
         output_is_log: bool = False,
         ignore_ret_codes: Iterable[int] = (),
@@ -150,9 +151,9 @@ class PTYCommLayer(CommunicationLayer):
 
             raise PTYException("Not supported attributes")
 
-        command_str:str = ""
+        command_str: str = ""
         if environment is not None:
-            environment: List[str] =[f"{k}={v}" for k,v in dict(environment).items()]
+            environment: List[str] = [f"{k}={v}" for k, v in dict(environment).items()]
             command_str += " ".join(environment)
 
         command_str += str(command)
@@ -160,8 +161,9 @@ class PTYCommLayer(CommunicationLayer):
             command_str += f"| {std_input}"
 
         if print_input:
-            print(command_str) # is that the benchkit logs ?
+            print(command_str)  # is that the benchkit logs ?
 
+        os.write(self._fd, command_str.encode())
         if self._fd is not None:
             buf = bytearray()
             while True:

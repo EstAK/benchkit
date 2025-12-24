@@ -12,6 +12,9 @@ import subprocess
 def default_busybox(cwd: PathType) -> PathType:
 
     busybox_path: pathlib.Path = pathlib.Path(cwd) / "busybox"
+    print(busybox_path)
+
+    exit(1)
 
     if not busybox_path.exists():
         git.clone_repo(repo_url="git://busybox.net/busybox.git", repo_src_dir=busybox_path)

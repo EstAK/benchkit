@@ -1,18 +1,22 @@
 import benchkit
-from benchkit.helpers.qemu import QEMU
+from benchkit.helpers.qemu import QEMUConfig
+from benchkit.helpers.linux.initramfs import InitBuilder
 import pathlib
 
 
 if __name__ == "__main__":
+    qemu_config = QEMUConfig(
+        number_of_cpus=4,
+        memory=4069,
+        kernel=pathlib.Path("./build/bzImage"),
+        shared_dir="shared",
+        enable_pty=True,
+        artifacts_dir="./build",
+        clean_build=False,
+    )
 
-    qemu = QEMU(number_of_cpus=4,
-                memory=4069,
-                kernel=pathlib.Path("./build/bzImage"),
-                shared_dir="shared",
-                enable_pty=True,
-                artifacts_dir="./build",)
+    qemu_config.init = InitBuilder.default()
 
-    with qemu as vm:
-        pass
-
-    pass
+    with qemu_config.spawn() as qemu:
+        with qemu.open_pty() as pty:
+            pty.shell(command="ls")

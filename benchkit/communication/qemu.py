@@ -1,33 +1,70 @@
 # Copyright (C) 2025 Vrije Universiteit Brussel. All rights reserved.
 # SPDX-License-Identifier: MIT
+from __future__ import annotations
 
 import os
+import re
 import select
+import pathlib
 import subprocess
 
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Self
 from benchkit.communication import CommunicationLayer
+from benchkit.communication.pty import CHUNK_SIZE, PTYCommLayer
 from benchkit.utils.types import Environment, PathType, Command
 from pathlib import Path
 
-
 class QEMUCommLayer(CommunicationLayer):
     def __init__(self, command: Command) -> None:
+        print(command)
         self._command: Command = command # this is most likely not useful
         self._pty_port: PathType | None = None
-        self._fd = subprocess.Popen(self._command, stdout=subprocess.PIPE, stdin=subprocess.PIPE, text=True)
 
-        # python should be able to implicitly get this but, better be safe
-        for line in stdout if (stdout := self._fd.stdout) is not None else []:
-            print(line)
+        self._fd: Popen[bytes] | None =  None 
 
 
-    def get_pty_port(self) -> PathType | None:
-        self._pty_port
+    def open_pty(self) -> PTYCommLayer | None:
+        print(self._pty_port)
+        if self._pty_port is not None:
+            print("here")
+            return PTYCommLayer(port=self._pty_port)
+        return None
 
     # kills the process
     def kill(self):
         pass
+
+    def __enter__(self) -> Self:
+        self._fd = subprocess.Popen(self._command,
+                         stdout=subprocess.PIPE,
+                         stdin=subprocess.PIPE,
+                         text=False,
+                         bufsize=0,)
+
+        # reading the initial QEMU message
+        buf = b""
+        if (stdout := self._fd.stdout) is not None:
+            while True:
+                r, _, _ = select.select([stdout], [], [], 1.0)
+                if not r:
+                    break
+
+                chunk = os.read(stdout.fileno(), CHUNK_SIZE)
+                if not chunk:
+                    break
+
+                buf += chunk
+
+        decoded_buf: str = buf.decode()
+        pty = re.search(r"/dev/pts/\d+", decoded_buf)
+        if pty:
+            self._pty_port = pathlib.Path(pty.group())
+
+        return self
+    
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.kill()
 
     @property
     def remote_host(self) -> str | None:

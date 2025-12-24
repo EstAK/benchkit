@@ -46,7 +46,7 @@ class InitBuilder:
         with open(out, "w") as file:
             file.writelines([
                 self.shebang,
-                *self.commands, 
+                *self.commands,
                 self.footer,
             ])
 
@@ -87,7 +87,7 @@ class InitramFS:
                 if item.is_dir():
                     shutil.copytree(item, target, dirs_exist_ok=True)
                 else:
-                    shutil.copy2(item, target)
+                    shutil.copy2(item, target,follow_symlinks=False)
 
 
     def compress(
