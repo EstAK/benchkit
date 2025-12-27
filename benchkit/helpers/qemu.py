@@ -135,6 +135,8 @@ class QEMUConfig:
                 self._initrd_args += ["build/initramfs.cpio.gz"]
 
             cmd: List[str] = [self._target_arch.value]
+            cmd.extend(["-smp", str(self._number_of_cpus)])
+            cmd.extend(["-m", str(self._memory)])
             cmd.extend(["-kernel", str(self._kernel)])
             cmd.extend(["-initrd", *self._initrd_args])
             cmd.append("-nographic")
