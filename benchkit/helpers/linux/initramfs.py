@@ -59,9 +59,14 @@ class InitramFS:
     def prepare(
             self,
             utils: PathType | None,
-    ) -> None:
+    ):
         
         initramfs_folder: pathlib.Path = pathlib.Path(self.fs_path)
+
+        try:
+            shutil.rmtree(initramfs_folder)
+        except FileNotFoundError:
+            pass
          
         os.mkdir(initramfs_folder)
         os.mkdir(initramfs_folder / "bin")
@@ -70,8 +75,10 @@ class InitramFS:
         os.mkdir(initramfs_folder / "proc")
         os.mkdir(initramfs_folder / "sys")
         os.mkdir(initramfs_folder / "dev")
+        os.mkdir(initramfs_folder / "usr" )
         os.mkdir(initramfs_folder / "usr" / "bin")
         os.mkdir(initramfs_folder / "usr" / "sbin")
+        os.mkdir(initramfs_folder / "usr" / "local")
         os.mkdir(initramfs_folder / "usr" / "local" / "bin")
 
         if utils is not None:
@@ -81,7 +88,6 @@ class InitramFS:
                     shutil.copytree(item, target, dirs_exist_ok=True)
                 else:
                     shutil.copy2(item, target)
-        return None
 
 
     def compress(

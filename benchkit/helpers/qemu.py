@@ -80,7 +80,7 @@ class QEMU():
         self._artifacts_dir: pathlib.Path = pathlib.Path(artifacts_dir)
 
         self._mounts: List[MountPoint] = mounts
-        self._initrd_args: List[str]
+        self.initrd_args: List[str] = list()
         self._kernel: PathType = kernel
         self._target_arch: Arch = target_arch
 
@@ -92,7 +92,7 @@ class QEMU():
             self._mounts.append(MountPoint(what=shared_dir, where="/host", _type="9p", args=["trans=virtio"]))
 
         if enable_pty:
-            self._extra_args.extend(["-serial, pty"])
+            self._extra_args.extend(["-serial", "pty"])
             self._extra_args.extend(["-append", '"console=ttyS0"'])
 
         try:
@@ -100,8 +100,14 @@ class QEMU():
                 shutil.rmtree(self._artifacts_dir)
             os.mkdir(self._artifacts_dir)
         except FileExistsError:
-            os.remove(self._artifacts_dir / "initramfs.cpio.gz")
-            os.remove(self._artifacts_dir / "init")
+            #try:
+            #    os.remove(self._artifacts_dir / "initramfs.cpio.gz")
+            #except FileNotFoundError:
+            #    pass
+            try:
+                os.remove(self._artifacts_dir / "init")
+            except FileNotFoundError:
+                pass
         except Exception:
             raise Exception("mkdir problem") # TODO make it less retarded
 
@@ -127,27 +133,24 @@ class QEMU():
     def add_mount_point(self,mount_point: MountPoint):
         self._mounts.append(mount_point)
 
-    def build(self):
-        """
-        Builds everything for the QEMU image to run, to embed files into the initramfs, call it directly
-        """
-
-        for mount_points in self._mounts:
-            self.init.add_command(" ".join(mount_points.mount_cmd))
-
-        self.init.build(pathlib.Path(self.initramfs.fs_path) / "init")
-        self._initrd_args += str(self.initramfs.compress())
-
     def _run(self):
         if self._artifacts_dir.exists():
+            for mount_points in self._mounts:
+                self.init.add_command(" ".join(mount_points.mount_cmd))
+
+            self.init.build(pathlib.Path(self.initramfs.fs_path) / "init")
+            # self.initrd_args.append(str(self.initramfs.compress()))
+            self.initrd_args += ["build/initramfs.cpio.gz"]
 
             cmd: List[str] = [self._target_arch.value]
             cmd.extend([f"-kernel", str(self._kernel)])
-            cmd.extend([f"-initrd", *self._initrd_args, "-nographic"])
+            cmd.extend([f"-initrd", *self.initrd_args, "-nographic"])
 
             cmd.extend(self._extra_args)
 
             self._qemu_term = QEMUCommLayer(command=cmd)
+        else:
+            raise QEMUException("No artifacts dir")
 
     def __enter__(self):
         self._run()
