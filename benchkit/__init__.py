@@ -4,3 +4,17 @@
 Main benchkit module.
 See README.md in the root of the repository for details.
 """
+
+from . import devices, remote, shell, hooks, cli , communication, helpers
+
+
+__all__ = [
+    "devices",
+    "remote",
+    "shell",
+    "hooks",
+    "cli",
+    "communication",
+    "helpers",
+]
+

@@ -1,13 +1,11 @@
 # Copyright (C) 2025 Vrije Universiteit Brussel, Ltd. All rights reserved.
 # SPDX-License-Identifier: MIT
 
-
 from typing import Self
+from . import ordering
 
-from ordering import TotalOrder
 
-
-class SemanticVersion(TotalOrder):
+class SemanticVersion(ordering.TotalOrder):
 
     def __init__(
         self,
