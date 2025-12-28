@@ -18,6 +18,9 @@ class QEMUCommException(Exception):
     pass
 
 class QEMUCommLayer(CommunicationLayer):
+    """
+    Communication layer with the QEMU console used for introspection into the emulated machine
+    """
     def __init__(self, command: Command) -> None:
         print(command)
         

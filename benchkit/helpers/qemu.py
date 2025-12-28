@@ -4,10 +4,8 @@
 from enum import Enum
 import pathlib
 import shutil
-import subprocess
 from typing import Callable, List
 
-import benchkit
 from benchkit.communication import CommunicationLayer
 from benchkit.communication.pty import PTYCommLayer, PTYException
 from benchkit.communication.qemu import QEMUCommLayer
@@ -20,7 +18,6 @@ from benchkit.utils import git
 from benchkit.utils.types import PathType, SplitCommand
 
 
-# FIXME use the proper PathType
 QEMU_ARTIFACTS: pathlib.Path = pathlib.Path(
     ".qemu_artifacts"
 )  # where to put the files that are used to build qemu
@@ -30,10 +27,9 @@ class QEMUException(Exception):
     pass
 
 
-#
 # NOTE fill ad_hoc
 class Arch(Enum):
-    x86 = "qemu-system-x86_64"
+    x86_64 = "qemu-system-x86_64"
 
 
 class QEMUConfig:
@@ -47,10 +43,10 @@ class QEMUConfig:
         kernel_args: List[str] = [],
         utilities: Callable[
             [PathType], PathType
-        ] = default_busybox,  # function that returns to the stuff that should go in /bin
+        ] = default_busybox,  # function that returns to the stuff that should go in the initramfs
         mounts: list[MountPoint] = list(),
         clean_build: bool = False,  # by default, we cache our artifacts
-        target_arch: Arch = Arch.x86,
+        target_arch: Arch = Arch.x86_64,
         artifacts_dir: PathType = QEMU_ARTIFACTS,
     ):
         # TODO check if cpio and stuff is installed on system
@@ -70,7 +66,7 @@ class QEMUConfig:
         self._extra_args: List[str] = list()
         self.shared_dir: PathType | None = shared_dir
         if shared_dir is not None:
-            # TODO if interested, abstract virtfs into a file system class node
+            # TODO if interested, abstract fs into its own class ?
             self._extra_args.extend(
                 [
                     "-virtfs",
@@ -140,7 +136,7 @@ class QEMUConfig:
             cmd.extend(["-kernel", str(self._kernel)])
             cmd.extend(["-initrd", *self._initrd_args])
             cmd.append("-nographic")
-            cmd.extend(["-append", f"\"{' '.join(self._kernel_args)}\""])
+            cmd.extend(["-append", f'"{" ".join(self._kernel_args)}"'])
 
             cmd.extend(self._extra_args)
 
