@@ -33,23 +33,25 @@ class QEMUCommLayer(CommunicationLayer):
     def open_pty(self) -> PTYCommLayer | None:
         if self._pty_port is not None:
             return PTYCommLayer(port=self._pty_port)
+        else:
+            raise QEMUCommException("The pty port does not exist")
         return None
 
-    # kills the process
     def kill(self):
+    # kills the process
         if self._fd is not None:
             self._fd.kill()
         else:
             raise  QEMUCommException("Tried to kill a non running instance")
 
-    def __enter__(self) -> Self:
-        self._fd = subprocess.Popen(self._command,
-                         stdout=subprocess.PIPE,
-                         stdin=subprocess.PIPE,
-                         text=False,
-                         bufsize=0,)
+    def _timed_read(self, timeout: float = 1.0) -> str:
+        """Reads the channel until nothing is sent for more than timeout seconds
 
-        # reading the initial QEMU message
+        Args:
+            timeout (float, optional):
+                number of seconds to wait before terminating the read
+                Defaults to 1.0 seconds
+        """    
         buf = b""
         if (stdout := self._fd.stdout) is not None:
             while True:
@@ -63,8 +65,20 @@ class QEMUCommLayer(CommunicationLayer):
 
                 buf += chunk
 
-        decoded_buf: str = buf.decode()
-        print(decoded_buf)
+        return buf.decode(errors="replace")
+
+        
+    def __enter__(self) -> Self:
+        self._fd = subprocess.Popen(self._command,
+                         stdout=subprocess.PIPE,
+                         stdin=subprocess.PIPE,
+                         text=False,
+                         bufsize=0,)
+
+        decoded_buf: str = self._timed_read()
+        print(decoded_buf) # NOTE add a flag to disable ? 
+
+        # regex to find the pty port
         pty = re.search(r"/dev/pts/\d+", decoded_buf)
         if pty:
             self._pty_port = pathlib.Path(pty.group())
@@ -74,6 +88,7 @@ class QEMUCommLayer(CommunicationLayer):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.kill()
+        return False # propagate error
 
     @property
     def remote_host(self) -> str | None:

@@ -224,6 +224,9 @@ class NotAnOptionException(Exception):
     pass
 
 class DotConfig:
+    """
+    Dot config files abstraction
+    """
 
     def __init__(self, path: PathType):
         self._path = path

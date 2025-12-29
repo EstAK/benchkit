@@ -11,10 +11,10 @@ from benchkit.communication.pty import PTYCommLayer, PTYException
 from benchkit.communication.qemu import QEMUCommLayer
 from benchkit.helpers.linux.initramfs import InitBuilder, InitramFS
 from benchkit.helpers.linux.utilities import default_busybox, MountPoint
+from benchkit.helpers.cpu import CPUTopology
 
 import os
 
-from benchkit.utils import git
 from benchkit.utils.types import PathType, SplitCommand
 
 
@@ -35,7 +35,9 @@ class Arch(Enum):
 class QEMUConfig:
     def __init__(
         self,
-        number_of_cpus: int,
+        cpu_topology: CPUTopology,
+        guest_logical_cores: int,
+        max_cpus: int,
         memory: int,
         kernel: PathType,
         shared_dir: PathType | None,
@@ -48,10 +50,18 @@ class QEMUConfig:
         clean_build: bool = False,  # by default, we cache our artifacts
         target_arch: Arch = Arch.x86_64,
         artifacts_dir: PathType = QEMU_ARTIFACTS,
+        nb_threads_per_core: int = 2,
     ):
         # TODO check if cpio and stuff is installed on system
 
-        self._number_of_cpus: int = number_of_cpus
+        self._max_cpus: int = max_cpus
+        self._cpu_topology: CPUTopology = cpu_topology
+        self._guest_logical_cores = (
+            self._cpu_topology.nb_cores
+            * self._cpu_topology.nb_sockets
+            * self._cpu_topology.nb_threads_per_core
+        )
+
         self._memory: int = memory
         self._clean_build: bool = clean_build
 
@@ -99,13 +109,8 @@ class QEMUConfig:
         self._comm_layer: QEMUCommLayer | None = None
 
     # NOTE this should probably move to a Linux Kernel config class in the future
-    def isolcpus(self, cpus: range | List[int] | int):
-        if isinstance(cpus, range):
-            self._kernel_args.append(f"isolcpus={cpus.start}-{cpus.stop}")
-        elif isinstance(cpus, list):  # HACK can't compare directly against List[int]
-            self._kernel_args.append(f"isolcpus={','.join([str(cpu) for cpu in cpus])}")
-        else:
-            self._kernel_args.append(f"isolcpus={str(cpus)}")
+    def isolcpus(self, cpus: List[int]):
+        self._cpu_topology.isolated_cores.union(cpus)
 
     def add_minimal_mount_points(self):
         self._mounts.append(MountPoint(what="devtmpfs", _type="devtmpfs", where="/dev"))
@@ -131,11 +136,28 @@ class QEMUConfig:
                 self._initrd_args += ["build/initramfs.cpio.gz"]
 
             cmd: List[str] = [self._target_arch.value]
-            cmd.extend(["-smp", str(self._number_of_cpus)])
+            cmd.extend(
+                [
+                    "-smp",
+                    *",".join(
+                        [
+                            str(self._guest_logical_cores),
+                            f"cores={self._cpu_topology.nb_cores}",
+                            f"threads={self._cpu_topology.nb_threads_per_core}",
+                            f"sockets={self._cpu_topology.nb_sockets}",
+                            f"maxcpus={self._max_cpus}",
+                        ]
+                    ),
+                ]
+            )
             cmd.extend(["-m", str(self._memory)])
             cmd.extend(["-kernel", str(self._kernel)])
             cmd.extend(["-initrd", *self._initrd_args])
             cmd.append("-nographic")
+
+            self._kernel_args.append(
+                f"isolcpus={','.join([cpu for cpu in self._cpu_topology.isolated_cores])}"
+            )
             cmd.extend(["-append", f'"{" ".join(self._kernel_args)}"'])
 
             cmd.extend(self._extra_args)

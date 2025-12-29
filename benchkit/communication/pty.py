@@ -17,26 +17,25 @@ from benchkit.utils.types import PathType, Command
 
 CHUNK_SIZE: int = 1024
 
+
 class PTYException(Exception):
     pass
 
 
 class PTYCommLayer(CommunicationLayer):
     def __init__(
-            self,
-            port: PathType,
-
+        self,
+        port: PathType,
     ) -> None:
         self._port: PathType = port
         self._fd: int | None = None
 
         super().__init__()
 
-
     def start_comm(self):
         self._fd = os.open(self._port, os.O_RDWR | os.O_NOCTTY)
 
-        # consuming the boot log 
+        # consuming the boot log
         buf = bytearray()
         while True:
             r, _, _ = select.select([self._fd], [], [], 1.0)
@@ -45,24 +44,42 @@ class PTYCommLayer(CommunicationLayer):
             chunk = os.read(self._fd, CHUNK_SIZE)
             buf.extend(chunk)
 
-
     def close_comm(self):
-        #Exception handling here
+        # Exception handling here
         if self._fd is not None:
             os.close(self._fd)
         else:
-            raise PTYException("The comm layer was manually closed or something else smh")
-        
+            raise PTYException(
+                "The comm layer was manually closed or something else smh"
+            )
+
+    def listen(self, timeout: float = 1.0) -> bytearray:
+        if self._fd is None:
+            raise PTYException("The port is not open : cannot listen")
+
+        buf = bytearray()
+        while True:
+            r, _, _ = select.select([self._fd], [], [], float(timeout))
+            if not r:
+                break
+            chunk = os.read(self._fd, CHUNK_SIZE)
+            buf.extend(chunk)
+
+        return buf
+
     def __enter__(self):
         # open and close file descriptors on demand to not maintain a fd opened for nothing
         if self._fd is None:
             self.start_comm()
             return self
         else:
-            raise PTYException("The PTY was already initialized or failed to properly close")
+            raise PTYException(
+                "The PTY was already initialized or failed to properly close"
+            )
 
     def __exit__(self, exception_type, exception_value, exception_traceback):
         self.close_comm()
+        return False
 
     @property
     def remote_host(self) -> str | None:
@@ -90,7 +107,7 @@ class PTYCommLayer(CommunicationLayer):
         Returns:
             str: IP address of the host.
         """
-        raise NotImplementedError() # this is not a certainty for all devices
+        raise NotImplementedError()  # this is not a certainty for all devices
 
     def pipe_shell(
         self,
@@ -153,14 +170,19 @@ class PTYCommLayer(CommunicationLayer):
         Returns:
             str: the output of the command.
         """
-        if current_dir != None             \
-                or shell != False          \
-                or print_curdir == True    \
-                or output_is_log == True   \
-                or ignore_ret_codes != ()  \
-                or ignore_any_error_code != False:
-
+        if (
+            current_dir is not None
+            or shell
+            or print_curdir
+            or output_is_log
+            or ignore_any_error_code
+            or ignore_ret_codes != ()
+        ):
             raise PTYException("Not supported attributes")
+        elif self._fd is None:
+            raise PTYException(
+                "The port is closed : open a communication before sending a command"
+            )
 
         command_str: str = ""
         if environment is not None:
@@ -171,30 +193,22 @@ class PTYCommLayer(CommunicationLayer):
         if std_input is not None:
             command_str += f"| {std_input}"
 
-
         if not command_str.endswith("\n"):
             command_str += "\n"
 
         os.write(self._fd, command_str.encode())
-        if self._fd is not None:
-            buf = bytearray()
-            while True:
-                r, _, _ = select.select([self._fd], [], [], float(timeout))
-                if not r:
-                    break
-                chunk = os.read(self._fd, CHUNK_SIZE)
-                buf.extend(chunk)
+        output: str = self.listen().decode(errors="replace")
 
-            output: str = buf.decode(errors="replace")
+        if print_input:
+            print(command_str.replace("\n", ""))
+            output = output.replace(
+                command_str.replace("\n", ""), ""
+            )  # avoid redundancy
 
-            if print_input:
-                output = output.replace(command_str.replace("\n", ""), "")
-            if print_output:
-                print(output)
+        if print_output:
+            print(output)
 
-            return output
-        else:
-            raise PTYException("Open the communication before sending a command")
+        return output
 
     def shell_succeed(
         self,
@@ -464,7 +478,9 @@ class PTYCommLayer(CommunicationLayer):
             destination: (PathType): The destination path where the file has to be
                                      copied to on the remote.
         """
-        raise NotImplementedError("Copy from host is not implemented for this communication layer")
+        raise NotImplementedError(
+            "Copy from host is not implemented for this communication layer"
+        )
 
     def copy_to_host(self, source: PathType, destination: PathType) -> None:
         """Copy a file to the host (the machine benchkit is run on), from the
@@ -475,7 +491,9 @@ class PTYCommLayer(CommunicationLayer):
             destination: (PathType): The destination path where the file has to be
                                      copied to on the host.
         """
-        raise NotImplementedError("Copy to host is not implemented for this communication layer")
+        raise NotImplementedError(
+            "Copy to host is not implemented for this communication layer"
+        )
 
     def hostname(self) -> str:
         """Get hostname of the target host.
@@ -613,10 +631,11 @@ class PTYCommLayer(CommunicationLayer):
     ) -> bool:
         succeed = True
         try:
-            self.shell(command=f"[ {opt} {path} ]", print_input=False, print_output=False)
+            self.shell(
+                command=f"[ {opt} {path} ]", print_input=False, print_output=False
+            )
         except subprocess.CalledProcessError as cpe:
             if 1 != cpe.returncode:
                 raise cpe
             succeed = False
         return succeed
-    
