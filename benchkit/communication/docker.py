@@ -8,7 +8,7 @@ from typing import Iterable
 
 from pythainer.runners import ConcreteDockerRunner
 
-from benchkit.communication import CommunicationLayer
+from benchkit.communication.generic import CommunicationLayer
 from benchkit.communication.utils import command_with_env, remote_shell_command
 from benchkit.shell.shell import shell_out
 from benchkit.utils.types import Command, Environment, PathType, SplitCommand

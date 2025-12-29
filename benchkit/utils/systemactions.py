@@ -6,7 +6,7 @@ Utilities to perform actions on the given system.
 TODO deprecate in favor of commlayer/platforms.
 """
 
-from benchkit.communication import CommunicationLayer, LocalCommLayer
+from benchkit.communication.generic import CommunicationLayer, LocalCommLayer
 
 
 def sync_filesystems(comm_layer: CommunicationLayer) -> None:

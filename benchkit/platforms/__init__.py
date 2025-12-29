@@ -10,7 +10,7 @@ is able to run remote command on the target where the benchmark will run.
 import importlib.util
 import sys
 
-from benchkit.communication import LocalCommLayer, SSHCommLayer
+from benchkit.communication.generic import LocalCommLayer, SSHCommLayer
 from benchkit.platforms.generic import Platform
 from benchkit.platforms.register import get_registered_platform
 from benchkit.utils.types import Environment

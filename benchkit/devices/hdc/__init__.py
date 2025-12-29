@@ -9,7 +9,7 @@ import subprocess
 from enum import Enum
 from typing import Callable, Iterable, List, Optional
 
-from benchkit.communication import CommunicationLayer
+from benchkit.communication.generic import CommunicationLayer
 from benchkit.communication.utils import command_with_env
 from benchkit.dependencies.executables import ExecutableDependency
 from benchkit.dependencies.packages import Dependency

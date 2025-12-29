@@ -11,7 +11,7 @@ import sys
 import time
 from typing import Callable, Iterable, Optional
 
-from benchkit.communication import CommunicationLayer
+from benchkit.communication.generic import CommunicationLayer
 from benchkit.communication.utils import command_with_env
 from benchkit.dependencies.dependency import Dependency
 from benchkit.dependencies.executables import ExecutableDependency

@@ -9,40 +9,81 @@ import pathlib
 import subprocess
 
 from typing import Iterable, Optional, Self
-from benchkit.communication import CommunicationLayer
+from benchkit.communication.generic import CommunicationLayer
 from benchkit.communication.pty import CHUNK_SIZE, PTYCommLayer
 from benchkit.utils.types import Environment, PathType, Command
-from pathlib import Path
+from benchkit.helpers.linux.utilities import MountPoint
+
 
 class QEMUCommException(Exception):
     pass
+
+
+class QEMUPty(PTYCommLayer):
+    def __init__(
+        self,
+        port: PathType,
+        shared_folder: MountPoint | None = None,
+    ) -> None:
+        self._port: PathType = port
+        self._fd: int | None = None
+        self._shard_folder: MountPoint | None = shared_folder
+
+        super().__init__()
+
+    def copy_from_host(self, source: PathType, destination: PathType) -> None:
+        """Copy a file from the host (the machine benchkit is run on), to the
+           target machine the benchmark will be performed on.
+
+        Args:
+            source (PathType): The source path where the file or folder is stored.
+            destination: (PathType): The destination path where the file has to be
+                                     copied to on the remote.
+        """
+        raise NotImplementedError(
+            "Copy from host is not implemented for this communication layer"
+        )
+
+    def copy_to_host(self, source: PathType, destination: PathType) -> None:
+        """Copy a file to the host (the machine benchkit is run on), from the
+           target machine the benchmark will be performed on.
+
+        Args:
+            source (PathType): The source path where the file or folder is stored on the remote.
+            destination: (PathType): The destination path where the file has to be
+                                     copied to on the host.
+        """
+        raise NotImplementedError(
+            "Copy to host is not implemented for this communication layer"
+        )
+
 
 class QEMUCommLayer(CommunicationLayer):
     """
     Communication layer with the QEMU console used for introspection into the emulated machine
     """
-    def __init__(self, command: Command) -> None:
-        print(command)
-        
-        self._command: Command = command # this is most likely not useful
+
+    def __init__(
+        self, command: Command, shared_folder: MountPoint | None = None
+    ) -> None:
+        self._command: Command = command  # this is most likely not useful
         self._pty_port: PathType | None = None
+        self._shared_folder: MountPoint | None = shared_folder
+        self._fd: subprocess.Popen[bytes] | None = None
 
-        self._fd: Popen[bytes] | None =  None 
-
-
-    def open_pty(self) -> PTYCommLayer | None:
+    def open_pty(self) -> QEMUPty | None:
         if self._pty_port is not None:
-            return PTYCommLayer(port=self._pty_port)
+            return QEMUPty(port=self._pty_port, shared_folder=self._shared_folder)
         else:
             raise QEMUCommException("The pty port does not exist")
         return None
 
     def kill(self):
-    # kills the process
+        # kills the process
         if self._fd is not None:
             self._fd.kill()
         else:
-            raise  QEMUCommException("Tried to kill a non running instance")
+            raise QEMUCommException("Tried to kill a non running instance")
 
     def _timed_read(self, timeout: float = 1.0) -> str:
         """Reads the channel until nothing is sent for more than timeout seconds
@@ -51,7 +92,7 @@ class QEMUCommLayer(CommunicationLayer):
             timeout (float, optional):
                 number of seconds to wait before terminating the read
                 Defaults to 1.0 seconds
-        """    
+        """
         buf = b""
         if (stdout := self._fd.stdout) is not None:
             while True:
@@ -67,16 +108,17 @@ class QEMUCommLayer(CommunicationLayer):
 
         return buf.decode(errors="replace")
 
-        
     def __enter__(self) -> Self:
-        self._fd = subprocess.Popen(self._command,
-                         stdout=subprocess.PIPE,
-                         stdin=subprocess.PIPE,
-                         text=False,
-                         bufsize=0,)
+        self._fd = subprocess.Popen(
+            self._command,
+            stdout=subprocess.PIPE,
+            stdin=subprocess.PIPE,
+            text=False,
+            bufsize=0,
+        )
 
         decoded_buf: str = self._timed_read()
-        print(decoded_buf) # NOTE add a flag to disable ? 
+        print(decoded_buf)  # NOTE add a flag to disable ?
 
         # regex to find the pty port
         pty = re.search(r"/dev/pts/\d+", decoded_buf)
@@ -84,11 +126,10 @@ class QEMUCommLayer(CommunicationLayer):
             self._pty_port = pathlib.Path(pty.group())
 
         return self
-    
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.kill()
-        return False # propagate error
+        return False  # propagate error
 
     @property
     def remote_host(self) -> str | None:
@@ -424,7 +465,7 @@ class QEMUCommLayer(CommunicationLayer):
         """
         return host_path
 
-    def comm_to_host_path(self, comm_path: Path) -> Path:
+    def comm_to_host_path(self, comm_path: pathlib.Path) -> pathlib.Path:
         """
         Convert a platform-side path (e.g., from inside a container or remote node)
         to the corresponding host-side path.
@@ -449,7 +490,9 @@ class QEMUCommLayer(CommunicationLayer):
             destination: (PathType): The destination path where the file has to be
                                      copied to on the remote.
         """
-        raise NotImplementedError("Copy from host is not implemented for this communication layer")
+        raise NotImplementedError(
+            "Copy from host is not implemented for this communication layer"
+        )
 
     def copy_to_host(self, source: PathType, destination: PathType) -> None:
         """Copy a file to the host (the machine benchkit is run on), from the
@@ -460,7 +503,9 @@ class QEMUCommLayer(CommunicationLayer):
             destination: (PathType): The destination path where the file has to be
                                      copied to on the host.
         """
-        raise NotImplementedError("Copy to host is not implemented for this communication layer")
+        raise NotImplementedError(
+            "Copy to host is not implemented for this communication layer"
+        )
 
     def hostname(self) -> str:
         """Get hostname of the target host.
@@ -488,7 +533,7 @@ class QEMUCommLayer(CommunicationLayer):
         ).strip()
         return result
 
-    def realpath(self, path: PathType) -> Path:
+    def realpath(self, path: PathType) -> pathlib.Path:
         """Get real path, following symlinks, of the given path.
         Communication aware equivalent of path.resolve().
 
@@ -503,7 +548,7 @@ class QEMUCommLayer(CommunicationLayer):
             print_input=False,
             print_output=False,
         ).strip()
-        result = Path(output)
+        result = pathlib.Path(output)
         return result
 
     def isfile(self, path: PathType) -> bool:
@@ -559,7 +604,7 @@ class QEMUCommLayer(CommunicationLayer):
         """
         return self._bracket_test(path=path, opt="-d")
 
-    def which(self, cmd: str) -> Path | None:
+    def which(self, cmd: str) -> pathlib.Path | None:
         """Return the absolute path of a given executable in the path.
 
         Args:
@@ -588,7 +633,7 @@ class QEMUCommLayer(CommunicationLayer):
         if not path:
             return None
 
-        result = Path(path)
+        result = pathlib.Path(path)
         return result
 
     def _bracket_test(
@@ -598,7 +643,9 @@ class QEMUCommLayer(CommunicationLayer):
     ) -> bool:
         succeed = True
         try:
-            self.shell(command=f"[ {opt} {path} ]", print_input=False, print_output=False)
+            self.shell(
+                command=f"[ {opt} {path} ]", print_input=False, print_output=False
+            )
         except subprocess.CalledProcessError as cpe:
             if 1 != cpe.returncode:
                 raise cpe

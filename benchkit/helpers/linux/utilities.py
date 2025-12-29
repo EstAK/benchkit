@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: MIT
 
 from benchkit.helpers.linux.kernel import DotConfig
-from benchkit.utils import git
 from benchkit.utils.types import PathType
+from benchkit.utils.git import clone_repo
 
 from typing import List
 
@@ -15,9 +15,7 @@ def default_busybox(cwd: PathType) -> PathType:
     busybox_path: pathlib.Path = pathlib.Path(cwd) / "busybox"
 
     if not busybox_path.exists():
-        git.clone_repo(
-            repo_url="git://busybox.net/busybox.git", repo_src_dir=busybox_path
-        )
+        clone_repo(repo_url="git://busybox.net/busybox.git", repo_src_dir=busybox_path)
 
     busybox_bins: pathlib.Path = busybox_path / "_install"
     if not busybox_bins.exists():
@@ -39,13 +37,13 @@ class MountPoint:
         self,
         what: PathType,
         where: PathType,
-        _type: str = "ext4",
+        type_: str = "ext4",
         mount_args: List[str] = list(),  # additional arguments
         umount_args: List[str] = list(),  # additional arguments
     ):
         self._what: PathType = what
         self._where: PathType = where
-        self._type: str = _type
+        self._type: str = type_
         self._mount_args: List[str] = mount_args
         self._umount_args: List[str] = umount_args
 

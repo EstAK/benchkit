@@ -1,21 +1,18 @@
 # Copyright (C) 2025 Vrije Universiteit Brussel. All rights reserved.
 # SPDX-License-Identifier: MIT
 
-from enum import Enum
 import pathlib
 import shutil
-from typing import Callable, List
-
-from benchkit.communication import CommunicationLayer
-from benchkit.communication.pty import PTYCommLayer, PTYException
-from benchkit.communication.qemu import QEMUCommLayer
-from benchkit.helpers.linux.initramfs import InitBuilder, InitramFS
-from benchkit.helpers.linux.utilities import default_busybox, MountPoint
-from benchkit.helpers.cpu import CPUTopology
-
 import os
 
-from benchkit.utils.types import PathType, SplitCommand
+from typing import Callable, List
+from enum import Enum
+
+from benchkit.helpers.linux.utilities import default_busybox, MountPoint
+from benchkit.helpers.linux.initramfs import InitBuilder, InitramFS
+from benchkit.communication.qemu import QEMUCommLayer
+from benchkit.helpers.cpu import CPUTopology
+from benchkit.utils.types import PathType
 
 
 QEMU_ARTIFACTS: pathlib.Path = pathlib.Path(
@@ -23,7 +20,7 @@ QEMU_ARTIFACTS: pathlib.Path = pathlib.Path(
 )  # where to put the files that are used to build qemu
 
 
-class QEMUException(Exception):
+class QEMUConfigException(Exception):
     pass
 
 
@@ -36,12 +33,11 @@ class QEMUConfig:
     def __init__(
         self,
         cpu_topology: CPUTopology,
-        guest_logical_cores: int,
-        max_cpus: int,
         memory: int,
         kernel: PathType,
         shared_dir: PathType | None,
         enable_pty: bool,
+        max_cpus: int | None = None,
         kernel_args: List[str] = [],
         utilities: Callable[
             [PathType], PathType
@@ -54,13 +50,22 @@ class QEMUConfig:
     ):
         # TODO check if cpio and stuff is installed on system
 
-        self._max_cpus: int = max_cpus
         self._cpu_topology: CPUTopology = cpu_topology
         self._guest_logical_cores = (
             self._cpu_topology.nb_cores
             * self._cpu_topology.nb_sockets
             * self._cpu_topology.nb_threads_per_core
         )
+        # by default the maximum number of cpus that can be hot plugged is the
+        # the same as the number of guest logical cores
+        if max_cpus is None:
+            self._max_cpus: int = self._guest_logical_cores
+        elif max_cpus >= self._guest_logical_cores:
+            self._max_cpus = max_cpus
+        else:
+            raise QEMUConfigException(
+                "The maximum of CPUs is fewer than the number of CPUs allocated to the machine"
+            )
 
         self._memory: int = memory
         self._clean_build: bool = clean_build
@@ -85,7 +90,10 @@ class QEMUConfig:
             )
             self._mounts.append(
                 MountPoint(
-                    what=shared_dir, where="/mnt", _type="9p", args=["trans=virtio"]
+                    what=shared_dir,
+                    where="/mnt",
+                    type_="9p",
+                    mount_args=["trans=virtio"],
                 )
             )
 
@@ -106,16 +114,15 @@ class QEMUConfig:
         self.initramfs: InitramFS = InitramFS(cwd=self._artifacts_dir)
         self.initramfs.prepare(utilities(self._artifacts_dir))
         self.init: InitBuilder = InitBuilder()
-        self._comm_layer: QEMUCommLayer | None = None
 
     # NOTE this should probably move to a Linux Kernel config class in the future
     def isolcpus(self, cpus: List[int]):
         self._cpu_topology.isolated_cores.union(cpus)
 
     def add_minimal_mount_points(self):
-        self._mounts.append(MountPoint(what="devtmpfs", _type="devtmpfs", where="/dev"))
-        self._mounts.append(MountPoint(what="none", _type="proc", where="/proc"))
-        self._mounts.append(MountPoint(what="none", _type="sysfs", where="/sys"))
+        self._mounts.append(MountPoint(what="devtmpfs", type_="devtmpfs", where="/dev"))
+        self._mounts.append(MountPoint(what="none", type_="proc", where="/proc"))
+        self._mounts.append(MountPoint(what="none", type_="sysfs", where="/sys"))
 
     def add_mount_point(self, mount_point: MountPoint):
         self._mounts.append(mount_point)
@@ -139,7 +146,7 @@ class QEMUConfig:
             cmd.extend(
                 [
                     "-smp",
-                    *",".join(
+                    ",".join(
                         [
                             str(self._guest_logical_cores),
                             f"cores={self._cpu_topology.nb_cores}",
@@ -164,4 +171,4 @@ class QEMUConfig:
 
             return QEMUCommLayer(command=cmd)
         else:
-            raise QEMUException("No artifacts dir")
+            raise QEMUConfigException("No artifacts dir")

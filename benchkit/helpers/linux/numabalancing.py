@@ -4,7 +4,7 @@
 Interact with NUMA balancing daemon on Linux.
 """
 
-from benchkit.communication import CommunicationLayer, LocalCommLayer
+from benchkit.communication.generic import CommunicationLayer, LocalCommLayer
 from benchkit.helpers.linux import sysctl
 from benchkit.platforms import Platform
 

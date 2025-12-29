@@ -10,7 +10,7 @@ import json
 import re
 from typing import Optional, Tuple
 
-from benchkit.communication import CommunicationLayer
+from benchkit.communication.generic import CommunicationLayer
 
 
 def _gen_lscpu_dict(comm_layer: CommunicationLayer):

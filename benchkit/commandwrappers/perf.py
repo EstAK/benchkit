@@ -19,7 +19,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from benchkit.benchmark import RecordResult, WriteRecordFileFunction
 from benchkit.commandwrappers import CommandWrapper, PackageDependency
-from benchkit.communication import CommunicationLayer
+from benchkit.communication.generic import CommunicationLayer
 from benchkit.helpers.linux import ps, sysctl
 from benchkit.platforms import Platform, get_current_platform
 from benchkit.shell.shell import shell_interactive, shell_out

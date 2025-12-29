@@ -2,12 +2,12 @@
 # SPDX-License-Identifier: MIT
 
 from __future__ import annotations
+
 from benchkit.helpers.linux.utilities import MountPoint
 from benchkit.utils.types import PathType
 
 import subprocess
 import pathlib
-import shutil
 import shutil
 import stat
 import os
@@ -33,14 +33,14 @@ class InitBuilder:
 
         init.add_command(
             " ".join(
-                MountPoint(what="devtmpfs", where="/dev", _type="devtmpfs").mount_cmd
+                MountPoint(what="devtmpfs", where="/dev", type_="devtmpfs").mount_cmd
             )
         )
         init.add_command(
-            " ".join(MountPoint(what="none", where="/proc", _type="proc").mount_cmd)
+            " ".join(MountPoint(what="none", where="/proc", type_="proc").mount_cmd)
         )
         init.add_command(
-            " ".join(MountPoint(what="none", where="/sys", _type="sysfs").mount_cmd)
+            " ".join(MountPoint(what="none", where="/sys", type_="sysfs").mount_cmd)
         )
 
         return init
@@ -64,6 +64,7 @@ class InitBuilder:
                     ],
                 )
             )
+
         os.chmod(path=out, mode=os.stat(out).st_mode | stat.S_IXUSR)
 
 

@@ -6,7 +6,7 @@ Interface with Linux systemd through `systemctl` command.
 
 from typing import Tuple
 
-from benchkit.communication import CommunicationLayer, LocalCommLayer
+from benchkit.communication.generic import CommunicationLayer, LocalCommLayer
 
 
 class Systemctl:

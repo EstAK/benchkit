@@ -12,7 +12,7 @@ import os.path
 import re
 from typing import List, Tuple
 
-from benchkit.communication import CommunicationLayer, LocalCommLayer
+from benchkit.communication.generic import CommunicationLayer, LocalCommLayer
 from benchkit.shell.shell import shell_out
 from benchkit.utils.types import PathType
 

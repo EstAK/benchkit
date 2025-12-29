@@ -7,7 +7,7 @@ Utilities related to platform modules.
 import os
 from typing import Set
 
-from benchkit.communication import CommunicationLayer
+from benchkit.communication.generic import CommunicationLayer
 
 
 def _parse_list_ranges(list_ranges: str) -> Set[int]:

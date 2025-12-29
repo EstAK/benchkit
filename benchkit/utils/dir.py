@@ -10,7 +10,7 @@ import os
 import pathlib
 from typing import Iterable
 
-from benchkit.communication import CommunicationLayer, LocalCommLayer
+from benchkit.communication.generic import CommunicationLayer, LocalCommLayer
 from benchkit.shell.shell import shell_out
 from benchkit.utils.types import PathType
 

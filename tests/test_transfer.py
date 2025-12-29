@@ -4,7 +4,7 @@
 import os
 import pathlib
 
-from benchkit.communication import LocalCommLayer, SSHCommLayer
+from benchkit.communication.generic import LocalCommLayer, SSHCommLayer
 
 # from benchkit.communication.docker import DockerCommLayer
 

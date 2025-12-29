@@ -6,7 +6,7 @@ Interact (read/write) with `ulimit` variables.
 
 import sys
 
-from benchkit.communication import CommunicationLayer, LocalCommLayer
+from benchkit.communication.generic import CommunicationLayer, LocalCommLayer
 
 
 def _command(

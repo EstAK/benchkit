@@ -10,7 +10,7 @@ import importlib
 import pathlib
 from typing import Dict, Type
 
-from benchkit.communication import LocalCommLayer, SSHCommLayer
+from benchkit.communication.generic import LocalCommLayer, SSHCommLayer
 from benchkit.platforms.generic import Platform
 from benchkit.utils.misc import hostname
 from benchkit.utils.types import Environment

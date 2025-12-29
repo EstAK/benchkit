@@ -10,7 +10,7 @@ from typing import List
 
 import libtmux
 
-from benchkit.communication import SSHCommLayer
+from benchkit.communication.generic import SSHCommLayer
 from benchkit.utils.types import PathType
 
 

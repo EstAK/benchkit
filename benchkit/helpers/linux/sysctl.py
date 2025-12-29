@@ -4,7 +4,7 @@
 Interact (read/write) with `sysctl` variables.
 """
 
-from benchkit.communication import CommunicationLayer
+from benchkit.communication.generic import CommunicationLayer
 
 
 def read(

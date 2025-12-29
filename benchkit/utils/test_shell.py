@@ -16,7 +16,7 @@ import unittest
 from io import StringIO
 from unittest.mock import patch
 
-from benchkit.communication import LocalCommLayer
+from benchkit.communication.generic import LocalCommLayer
 from benchkit.shell.shell import shell_out
 from benchkit.shell.utils import (
     _print_cd,

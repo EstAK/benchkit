@@ -8,7 +8,7 @@ configuring, compiling and installing.
 import pathlib
 from typing import Dict, Iterable, List
 
-from benchkit.communication import CommunicationLayer
+from benchkit.communication.generic import CommunicationLayer
 from benchkit.helpers.linux.build import (
     KernelEntry,
     LinuxBuild,

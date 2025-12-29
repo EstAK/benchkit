@@ -6,7 +6,7 @@ Module for the representation of generic platforms that can be derived into actu
 
 from typing import List
 
-from benchkit.communication import CommunicationLayer
+from benchkit.communication.generic import CommunicationLayer
 from benchkit.platforms import evenorder
 from benchkit.platforms.utils import (
     get_nb_cpus_active,

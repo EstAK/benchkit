@@ -8,7 +8,7 @@ of the different CPUs of the target platform.
 import re
 from typing import Any, Dict, Iterable, List, Optional
 
-from benchkit.communication import CommunicationLayer, LocalCommLayer
+from benchkit.communication.generic import CommunicationLayer, LocalCommLayer
 
 
 def to_hz(value: str, unit: str) -> int:

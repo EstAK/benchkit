@@ -3,7 +3,8 @@
 
 
 from benchkit.platforms.generic import Platform
-from benchkit.communication import CommunicationLayer
+from benchkit.communication.generic import CommunicationLayer
+from benchkit.communication.pty import PTYCommLayer
 from benchkit.helpers.qemu import QEMUConfig
 
 from benchkit.utils import lscpu
@@ -25,10 +26,6 @@ class _QEMUCommonPlatform(Platform):
     ) -> None:
         self._comm_layer: CommunicationLayer = comm_layer
         self._qemu_config: QEMUConfig = qemu_config
-
-        self._architecture = None
-        self.hostname: str | None = None
-        self._lscpu: lscpu.LsCpu | None = None
 
     @property
     def comm(self) -> CommunicationLayer:
@@ -262,5 +259,28 @@ class QEMUIntrospection(_QEMUCommonPlatform):
 
 
 class QEMUMachine(_QEMUCommonPlatform):
-    pass
+    def __init__(
+        self,
+        comm_layer: PTYCommLayer | None,
+        qemu_config: QEMUConfig | None,
+    ) -> None:
+        self._comm_layer: CommunicationLayer = comm_layer
+        self._qemu_config: QEMUConfig = qemu_config
+
+    @property
+    def comm(self) -> CommunicationLayer:
+        """
+        Get the communication layer of the host associated with the current platform.
+
+        Returns:
+            CommunicationLayer:
+                the communication layer of the host associated with the current platform.
+        """
+        # NOTE should the platform start the communication ? 
+        if not self._comm_layer.is_open(): 
+            self._comm_layer.start_comm()
+
+        return self._comm_layer
+
+
 

@@ -17,7 +17,7 @@ import mysqlconfigs
 import mysqlthreadpins
 
 from benchkit.commandwrappers.numactl import numactl_cmd_prefix
-from benchkit.communication import LocalCommLayer
+from benchkit.communication.generic import LocalCommLayer
 from benchkit.dependencies.dependency import Dependency
 from benchkit.dependencies.packages import PackageDependency
 from benchkit.helpers.sql import DBMS, DBMSInstance, SQLClient

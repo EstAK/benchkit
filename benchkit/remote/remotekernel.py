@@ -13,7 +13,7 @@ import subprocess
 import time
 from typing import List
 
-from benchkit.communication import SSHCommLayer
+from benchkit.communication.generic import SSHCommLayer
 from benchkit.helpers.linux.grubentries import set_grub_default
 from benchkit.helpers.linux.kernel import Kernel
 from benchkit.remote import TmuxSSHSession
