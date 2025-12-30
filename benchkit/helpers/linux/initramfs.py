@@ -85,6 +85,7 @@ class InitramFS:
             pass
 
         os.mkdir(initramfs_folder)
+        os.mkdir(initramfs_folder / "tmp")
         os.mkdir(initramfs_folder / "bin")
         os.mkdir(initramfs_folder / "mnt")
         os.mkdir(initramfs_folder / "sbin")
@@ -92,6 +93,7 @@ class InitramFS:
         os.mkdir(initramfs_folder / "proc")
         os.mkdir(initramfs_folder / "sys")
         os.mkdir(initramfs_folder / "dev")
+
         os.mkdir(initramfs_folder / "usr")
         os.mkdir(initramfs_folder / "usr" / "bin")
         os.mkdir(initramfs_folder / "usr" / "sbin")

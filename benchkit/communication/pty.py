@@ -25,6 +25,7 @@ class PtyCommLayer(CommunicationLayer, StatusAware):
     ) -> None:
         self._port: PathType = port
         self._fd: int | None = None
+        self._ps1: str = ""
 
         super().__init__()
 
@@ -48,6 +49,9 @@ class PtyCommLayer(CommunicationLayer, StatusAware):
     def start_comm(self):
         self._fd = os.open(self._port, os.O_RDWR | os.O_NOCTTY)
         _: bytearray = self.listen()  # consuming the boot log
+        self._ps1 = self.shell(
+            command="", print_input=False, print_output=False
+        )  # calibration
 
     def checked_close_comm(self):
         if self.is_open():
@@ -180,7 +184,13 @@ class PtyCommLayer(CommunicationLayer, StatusAware):
             environment: List[str] = [f"{k}={v}" for k, v in dict(environment).items()]
             command_str += " ".join(environment)
 
-        command_str += str(command)
+        if isinstance(command, list):
+            command_str += " ".join(command)
+        elif isinstance(command, str):
+            command_str += command
+        else:
+            raise PTYException("Not a valid command type")
+
         if std_input is not None:
             command_str += f"| {std_input}"
 
@@ -189,12 +199,14 @@ class PtyCommLayer(CommunicationLayer, StatusAware):
 
         os.write(self._fd, command_str.encode())
         output: str = self.listen().decode(errors="replace")
+        output = (
+            output.replace(command_str.replace("\n", ""), "")
+            .replace(self._ps1, "")
+            .strip()
+        )
 
         if print_input:
             print(command_str.replace("\n", ""))
-            output = output.replace(
-                command_str.replace("\n", ""), ""
-            )  # avoid redundancy
 
         if print_output:
             print(output)

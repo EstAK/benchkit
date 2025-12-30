@@ -49,14 +49,16 @@ class MountPoint:
 
     @property
     def mount_cmd(self) -> List[str]:
-        return [
-            "mount",
-            "-t",
-            str(self._type),
-            str(self._what),
-            str(self._where),
-        ] + self._mount_args
+        cmd: List[str] = ["mount"]
+        cmd += ["-t", self._type]
+        if self._mount_args:
+            cmd.append("-o")
+            cmd.append(",".join(self._mount_args))  # arguments are comma separated
+        cmd.append(str(self._what))
+        cmd.append(str(self._where))
+        return cmd
 
     @property
     def unmount_cmd(self) -> List[str]:
+        # TODO check as this is most likely not working
         return ["umount", str(self._where)] + self._umount_args

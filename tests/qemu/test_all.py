@@ -9,6 +9,7 @@ from benchkit.helpers.cpu import CPUTopology
 from benchkit.communication.qemu import QEMUPty
 
 import pathlib
+import subprocess
 
 
 if __name__ == "__main__":
@@ -20,11 +21,12 @@ if __name__ == "__main__":
         cpu_topology=CPUTopology(nb_cores=4, nb_threads_per_core=2),
         memory=4069,
         kernel=pathlib.Path("./build/bzImage"),
-        shared_dir="shared",
+        shared_folder="shared",
         enable_pty=True,
         artifacts_dir="./build",
         clean_build=False,
     )
+    subprocess.run("echo 'hello world!' > hello.txt", shell=True)
 
     qemu_config.init = InitBuilder.default()
     with qemu_config.spawn() as qemu_comm:
@@ -33,4 +35,8 @@ if __name__ == "__main__":
         )
         machine: QEMUMachine[QEMUPty] = qemu.machine(comm=qemu.comm.open_pty())
         with machine.comm as pty:
-            str_ = pty.shell(command="ls")
+            pty.copy_from_host("hello.txt", pathlib.Path("/tmp") / "world.txt")
+            str_ = pty.shell(
+                command="cat /tmp/world.txt", print_output=False, print_input=False
+            )
+            print(str_)

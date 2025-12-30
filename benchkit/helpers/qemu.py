@@ -35,7 +35,7 @@ class QEMUConfig:
         cpu_topology: CPUTopology,
         memory: int,
         kernel: PathType,
-        shared_dir: PathType | None,
+        shared_folder: PathType | None,
         enable_pty: bool,
         max_cpus: int | None = None,
         kernel_args: List[str] = [],
@@ -79,24 +79,26 @@ class QEMUConfig:
         self._target_arch: Arch = target_arch
 
         self._extra_args: List[str] = list()
-        self.shared_dir: PathType | None = shared_dir
-        if shared_dir is not None:
-            # TODO if interested, abstract fs into its own class ?
+        self._shared_folder: MountPoint | None = None
+        # TODO if interested, abstract fs into its own class ?
+        if shared_folder is not None:
+            self._shared_folder = MountPoint(
+                what=shared_folder,
+                where="/mnt",
+                type_="9p",
+                mount_args=["trans=virtio"],
+            )
+
+            if not self._shared_folder._what:
+                os.mkdir(self._shared_folder._what)
+
             self._extra_args.extend(
                 [
                     "-virtfs",
-                    f"local,path={shared_dir},mount_tag=host0,security_model=none",
+                    f"local,path={self._shared_folder._what},mount_tag={self._shared_folder._what},security_model=none",
                 ]
             )
-            self._mounts.append(
-                MountPoint(
-                    what=shared_dir,
-                    where="/mnt",
-                    type_="9p",
-                    mount_args=["trans=virtio"],
-                )
-            )
-
+        # FIXME fix ad hoc with other comm layers to QEMU
         if enable_pty:
             self._extra_args.extend(["-serial", "pty"])
             self._kernel_args.append("console=ttyS0")
@@ -129,6 +131,9 @@ class QEMUConfig:
 
     def spawn(self) -> QEMUCommLayer:
         if self._artifacts_dir.exists():
+            if self._shared_folder is not None:
+                self._mounts.append(self._shared_folder)
+
             for mount_points in self._mounts:
                 self.init.add_command(" ".join(mount_points.mount_cmd))
 
@@ -168,7 +173,8 @@ class QEMUConfig:
             cmd.extend(["-append", f'"{" ".join(self._kernel_args)}"'])
 
             cmd.extend(self._extra_args)
+            print(cmd)
 
-            return QEMUCommLayer(command=cmd)
+            return QEMUCommLayer(command=cmd, shared_folder=self._shared_folder)
         else:
             raise QEMUConfigException("No artifacts dir")

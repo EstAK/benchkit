@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 import select
+import shutil
 import pathlib
 import subprocess
 
@@ -37,8 +38,24 @@ class QEMUPty(PtyCommLayer):
             destination: (PathType): The destination path where the file has to be
                                      copied to on the remote.
         """
-        subprocess.run(["cp", "-r", source, self._shared_folder._what / source])
-        self.shell(command=["cp", "-r", self._shared_folder._where / source, destination])
+        subprocess.run(
+            [
+                "cp",
+                "-r",
+                str(source),
+                str(pathlib.Path(self._shared_folder._what) / pathlib.Path(source)),
+            ]
+        )
+        self.shell(
+            command=[
+                "cp",
+                "-r",
+                str(pathlib.Path(self._shared_folder._where) / pathlib.Path(source)),
+                str(destination),
+            ],
+            print_input=False,
+            print_output=False,
+        )
 
     def copy_to_host(self, source: PathType, destination: PathType) -> None:
         """Copy a file to the host (the machine benchkit is run on), from the
@@ -49,8 +66,12 @@ class QEMUPty(PtyCommLayer):
             destination: (PathType): The destination path where the file has to be
                                      copied to on the host.
         """
-        self.shell(command=["cp", "-r", source, self._shared_folder._what / source])
-        subprocess.run(["cp", "-r", self._shared_folder._what / source, destination ])
+        self.shell(
+            command=["cp", "-r", source, self._shared_folder._what / source],
+            print_input=False,
+            print_output=False,
+        )
+        subprocess.run(["cp", "-r", self._shared_folder._what / source, destination])
 
 
 class QEMUCommLayer(CommunicationLayer, StatusAware):
@@ -75,7 +96,7 @@ class QEMUCommLayer(CommunicationLayer, StatusAware):
             bufsize=0,
         )
         decoded_buf: str = self._timed_read()
-        print(decoded_buf)  # NOTE add a flag to disable ?
+        # print(decoded_buf)  # NOTE add a flag to disable ?
 
         # regex to find the pty port
         pty = re.search(r"/dev/pts/\d+", decoded_buf)
