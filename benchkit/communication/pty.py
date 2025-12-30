@@ -8,7 +8,7 @@ import os
 import subprocess
 from typing import List
 
-from benchkit.communication.generic import CommunicationLayer
+from benchkit.communication.generic import CommunicationLayer, StatusAware
 from benchkit.utils.types import PathType, Command
 
 CHUNK_SIZE: int = 1024
@@ -18,7 +18,7 @@ class PTYException(Exception):
     pass
 
 
-class PTYCommLayer(CommunicationLayer):
+class PtyCommLayer(CommunicationLayer, StatusAware):
     def __init__(
         self,
         port: PathType,

@@ -1,13 +1,14 @@
 # Copyright (C) 2025 Vrije Universiteit Brussel. All rights reserved.
 # SPDX-License-Identifier: MIT
 
-
 from benchkit.platforms.generic import Platform
-from benchkit.communication.generic import CommunicationLayer
-from benchkit.communication.pty import PTYCommLayer
+from benchkit.communication.generic import CommunicationLayer, StatusAware
+from benchkit.communication.qemu import QEMUCommLayer, QEMUPty
 from benchkit.helpers.qemu import QEMUConfig
 
 from benchkit.utils import lscpu
+
+from typing import List, Generic, TypeVar, get_args
 
 
 class QEMUPlatformException(Exception):
@@ -24,7 +25,7 @@ class _QEMUCommonPlatform(Platform):
         comm_layer: CommunicationLayer | None,
         qemu_config: QEMUConfig,
     ) -> None:
-        self._comm_layer: CommunicationLayer = comm_layer
+        self._comm_layer: CommunicationLayer | None = comm_layer
         self._qemu_config: QEMUConfig = qemu_config
 
     @property
@@ -127,7 +128,7 @@ class _QEMUCommonPlatform(Platform):
         Returns:
             int: _description_
         """
-        # NOTE how valid is it for qemu ? 
+        # NOTE how valid is it for qemu ?
         # conservative assumption in the absence of the precise information:
         return self.nb_hyperthreaded_cores()
 
@@ -157,7 +158,7 @@ class _QEMUCommonPlatform(Platform):
         Returns:
             int | None: the size (in bytes) of one cache line on the platform.
         """
-        return NotImplemented # TODO https://www.qemu.org/docs/master/system/qemu-manpage.html
+        return NotImplemented  # TODO https://www.qemu.org/docs/master/system/qemu-manpage.html
 
     def cpu_order(
         self,
@@ -254,18 +255,46 @@ class _QEMUCommonPlatform(Platform):
         return NotImplemented
 
 
-class QEMUIntrospection(_QEMUCommonPlatform):
-    pass
+# TODO ad hoc new qemu approved communication layers
+T = TypeVar("T", bound=[CommunicationLayer, StatusAware])
 
 
-class QEMUMachine(_QEMUCommonPlatform):
+class QEMUMachine(_QEMUCommonPlatform, Generic[T]):
     def __init__(
         self,
-        comm_layer: PTYCommLayer | None,
+        comm_layer: T | None,
         qemu_config: QEMUConfig | None,
     ) -> None:
-        self._comm_layer: CommunicationLayer = comm_layer
-        self._qemu_config: QEMUConfig = qemu_config
+        super().__init__(comm_layer, qemu_config)
+
+    @property
+    def comm(self) -> T:
+        """
+        Get the communication layer of the host associated with the current platform.
+
+        Returns:
+            Generic(bound=CommunicationLayer):
+                the communication layer of the host associated with the current platform.
+        """
+        # NOTE should the platform start the communication ?
+        return self._comm_layer
+
+
+class QEMUIntrospection(_QEMUCommonPlatform, Generic[T]):
+    def __init__(
+        self,
+        comm_layer: QEMUCommLayer,
+        qemu_config: QEMUConfig,
+    ) -> None:
+        # we can use other types of communication layer in the future depending on our needs
+        self._machine: QEMUMachine[T] | None = None
+        super().__init__(comm_layer, qemu_config)
+
+    def machine(self, comm: T) -> QEMUMachine[T]:
+        if self._machine is None:
+            self._machine = QEMUMachine(qemu_config=self._qemu_config, comm_layer=comm)
+
+        return self._machine
 
     @property
     def comm(self) -> CommunicationLayer:
@@ -276,11 +305,8 @@ class QEMUMachine(_QEMUCommonPlatform):
             CommunicationLayer:
                 the communication layer of the host associated with the current platform.
         """
-        # NOTE should the platform start the communication ? 
-        if not self._comm_layer.is_open(): 
+        # NOTE should the platform start the communication ?
+        if not self._comm_layer.is_open():
             self._comm_layer.start_comm()
 
         return self._comm_layer
-
-
-

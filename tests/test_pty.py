@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 
-from benchkit.communication.pty import PTYCommLayer
+from benchkit.communication.pty import PtyCommLayer
 from typing import List
 
 import pathlib
@@ -15,7 +15,7 @@ import threading
 
 def thread(port: pathlib.Path):
     decoded: str
-    with PTYCommLayer(port=port) as pty:
+    with PtyCommLayer(port=port) as pty:
         out: bytearray = pty.listen(timeout=5.0) # big timeout to take latencies into account
         if not len(out):
             print("nothing was received")
@@ -52,7 +52,7 @@ if __name__ == "__main__":
 
     listener = threading.Thread(target=thread, args=(pathlib.Path(pty[1]),))
     listener.start()
-    with PTYCommLayer(port=pathlib.Path(pty[0])) as pty0:
+    with PtyCommLayer(port=pathlib.Path(pty[0])) as pty0:
         pty0.shell(command="hello", print_input=False)
     listener.join()
     

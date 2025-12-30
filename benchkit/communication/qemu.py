@@ -9,8 +9,8 @@ import pathlib
 import subprocess
 
 from typing import Iterable, Optional, Self
-from benchkit.communication.generic import CommunicationLayer
-from benchkit.communication.pty import CHUNK_SIZE, PTYCommLayer
+from benchkit.communication.generic import CommunicationLayer, StatusAware
+from benchkit.communication.pty import CHUNK_SIZE, PtyCommLayer
 from benchkit.utils.types import Environment, PathType, Command
 from benchkit.helpers.linux.utilities import MountPoint
 
@@ -19,17 +19,14 @@ class QEMUCommException(Exception):
     pass
 
 
-class QEMUPty(PTYCommLayer):
+class QEMUPty(PtyCommLayer):
     def __init__(
         self,
         port: PathType,
-        shared_folder: MountPoint | None = None,
+        shared_folder: MountPoint,
     ) -> None:
-        self._port: PathType = port
-        self._fd: int | None = None
-        self._shard_folder: MountPoint | None = shared_folder
-
-        super().__init__()
+        self._shared_folder: MountPoint = shared_folder
+        super().__init__(port)
 
     def copy_from_host(self, source: PathType, destination: PathType) -> None:
         """Copy a file from the host (the machine benchkit is run on), to the
@@ -40,9 +37,8 @@ class QEMUPty(PTYCommLayer):
             destination: (PathType): The destination path where the file has to be
                                      copied to on the remote.
         """
-        raise NotImplementedError(
-            "Copy from host is not implemented for this communication layer"
-        )
+        subprocess.run(["cp", "-r", source, self._shared_folder._what / source])
+        self.shell(command=["cp", "-r", self._shared_folder._where / source, destination])
 
     def copy_to_host(self, source: PathType, destination: PathType) -> None:
         """Copy a file to the host (the machine benchkit is run on), from the
@@ -53,12 +49,11 @@ class QEMUPty(PTYCommLayer):
             destination: (PathType): The destination path where the file has to be
                                      copied to on the host.
         """
-        raise NotImplementedError(
-            "Copy to host is not implemented for this communication layer"
-        )
+        self.shell(command=["cp", "-r", source, self._shared_folder._what / source])
+        subprocess.run(["cp", "-r", self._shared_folder._what / source, destination ])
 
 
-class QEMUCommLayer(CommunicationLayer):
+class QEMUCommLayer(CommunicationLayer, StatusAware):
     """
     Communication layer with the QEMU console used for introspection into the emulated machine
     """
@@ -71,6 +66,22 @@ class QEMUCommLayer(CommunicationLayer):
         self._shared_folder: MountPoint | None = shared_folder
         self._fd: subprocess.Popen[bytes] | None = None
 
+    def start_comm(self) -> None:
+        self._fd = subprocess.Popen(
+            self._command,
+            stdout=subprocess.PIPE,
+            stdin=subprocess.PIPE,
+            text=False,
+            bufsize=0,
+        )
+        decoded_buf: str = self._timed_read()
+        print(decoded_buf)  # NOTE add a flag to disable ?
+
+        # regex to find the pty port
+        pty = re.search(r"/dev/pts/\d+", decoded_buf)
+        if pty:
+            self._pty_port = pathlib.Path(pty.group())
+
     def open_pty(self) -> QEMUPty | None:
         if self._pty_port is not None:
             return QEMUPty(port=self._pty_port, shared_folder=self._shared_folder)
@@ -78,12 +89,18 @@ class QEMUCommLayer(CommunicationLayer):
             raise QEMUCommException("The pty port does not exist")
         return None
 
-    def kill(self):
+    def is_open(self) -> bool:
+        return self._fd is not None
+
+    def checked_close_comm(self):
         # kills the process
         if self._fd is not None:
             self._fd.kill()
         else:
             raise QEMUCommException("Tried to kill a non running instance")
+
+    def _unchecked_close_comm(self):
+        self._fd.kill()
 
     def _timed_read(self, timeout: float = 1.0) -> str:
         """Reads the channel until nothing is sent for more than timeout seconds
@@ -109,26 +126,11 @@ class QEMUCommLayer(CommunicationLayer):
         return buf.decode(errors="replace")
 
     def __enter__(self) -> Self:
-        self._fd = subprocess.Popen(
-            self._command,
-            stdout=subprocess.PIPE,
-            stdin=subprocess.PIPE,
-            text=False,
-            bufsize=0,
-        )
-
-        decoded_buf: str = self._timed_read()
-        print(decoded_buf)  # NOTE add a flag to disable ?
-
-        # regex to find the pty port
-        pty = re.search(r"/dev/pts/\d+", decoded_buf)
-        if pty:
-            self._pty_port = pathlib.Path(pty.group())
-
+        self.start_comm()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.kill()
+        self._unchecked_close_comm()
         return False  # propagate error
 
     @property
