@@ -25,7 +25,7 @@ class PtyCommLayer(CommunicationLayer, StatusAware):
     ) -> None:
         self._port: PathType = port
         self._fd: int | None = None
-        self._ps1: str = ""
+        self._ps1: str = "" # only for shells : make it optional ?
 
         super().__init__()
 
@@ -48,7 +48,7 @@ class PtyCommLayer(CommunicationLayer, StatusAware):
 
     def start_comm(self):
         self._fd = os.open(self._port, os.O_RDWR | os.O_NOCTTY)
-        _: bytearray = self.listen()  # consuming the boot log
+        _: bytearray = self.listen(timeout=0.5)  # consuming the boot log
         self._ps1 = self.shell(
             command="", print_input=False, print_output=False
         )  # calibration

@@ -9,6 +9,7 @@ from typing import List
 
 import pathlib
 import subprocess
+import multiprocessing
 
 
 def default_busybox(cwd: PathType) -> PathType:
@@ -25,9 +26,11 @@ def default_busybox(cwd: PathType) -> PathType:
         # "patching" the config
         dot_config = DotConfig(path=busybox_path / ".config")
         dot_config.unset_option("CONFIG_TC")
-        dot_config.set_option("CONFIG_STATIC", "y")
+        dot_config.set_option(option="CONFIG_STATIC", value="y")
 
-        subprocess.run(["make", "-j", "$(npproc)"], cwd=busybox_path)
+        subprocess.run(
+            ["make", "install", f"-j{multiprocessing.cpu_count()}"], cwd=busybox_path
+        )
 
     return busybox_bins
 

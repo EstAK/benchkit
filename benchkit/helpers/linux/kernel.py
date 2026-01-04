@@ -223,6 +223,7 @@ def get_version(
 class NotAnOptionException(Exception):
     pass
 
+
 class DotConfig:
     """
     Dot config files abstraction
@@ -231,9 +232,8 @@ class DotConfig:
     def __init__(self, path: PathType):
         self._path = path
 
-
     @property
-    def enabled_options(self): 
+    def enabled_options(self):
         acc: list[str] = list()
         with open(self._path, "r") as file:
             for line in file:
@@ -241,49 +241,49 @@ class DotConfig:
                     acc.append(line.split("=")[0])
         return acc
 
+    def _matches_option(self, line: str, option: str) -> bool:
+        return line.startswith(f"{option}=") or line.startswith(
+            f"# {option} is not set"
+        )
 
     def set_option(self, option: str, value: str):
-        """
-        Sets the option `option` to `value` regardless of it exists or not
-        """
         with open(self._path, "r") as file:
-            lines: list[str] = file.readlines()
+            lines = file.readlines()
 
-        line_found: bool = False
+        found = False
         for i, line in enumerate(lines):
-            if line.startswith(option):
-                lines[i] = f"{option}={value}"
-                line_found = True
+            if self._matches_option(line, option):
+                lines[i] = f"{option}={value}\n"
+                found = True
                 break
 
-        if not line_found:
-            lines.append(f"{option}={value}")
+        if not found:
+            lines.append(f"{option}={value}\n")
 
         with open(self._path, "w") as file:
             file.writelines(lines)
-        
-    def get_option(self, option: str) -> str:
+
+    def get_option(self, option: str) -> str | None:
         with open(self._path, "r") as file:
-            for line in file.readlines():
-                if line.startswith(option):
-                    return line.split("=")[1].strip()
+            for line in file:
+                if line.startswith(f"{option}="):
+                    return line.split("=", 1)[1].strip()
+                if line.startswith(f"# {option} is not set"):
+                    return None
 
     def unset_option(self, option: str):
-        """
-        Sets the option `option` to `value` regardless of it exists or not
-        """
         with open(self._path, "r") as file:
-            lines: list[str] = file.readlines()
+            lines = file.readlines()
 
-        line_found: bool = False
+        found = False
         for i, line in enumerate(lines):
-            if line.startswith(option):
-                lines = lines[:i] + lines[i+1:] # slicing the list
-                line_found = True
+            if self._matches_option(line, option):
+                lines[i] = f"# {option} is not set\n"
+                found = True
                 break
 
-        if not line_found:
-            raise NotAnOptionException(f"The option : {option} does not exist")
+        if not found:
+            raise NotAnOptionException(f"The option {option} does not exist")
 
         with open(self._path, "w") as file:
             file.writelines(lines)

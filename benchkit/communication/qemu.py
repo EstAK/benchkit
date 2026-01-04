@@ -1,6 +1,5 @@
 # Copyright (C) 2025 Vrije Universiteit Brussel. All rights reserved.
 # SPDX-License-Identifier: MIT
-from __future__ import annotations
 
 import os
 import re
@@ -88,18 +87,28 @@ class QEMUCommLayer(CommunicationLayer, StatusAware):
         self._fd: subprocess.Popen[bytes] | None = None
 
     def start_comm(self) -> None:
-        self._fd = subprocess.Popen(
-            self._command,
-            stdout=subprocess.PIPE,
-            stdin=subprocess.PIPE,
-            text=False,
-            bufsize=0,
-        )
-        decoded_buf: str = self._timed_read()
+        if (
+            fd := subprocess.Popen(
+                self._command,
+                stdout=subprocess.PIPE,
+                stdin=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=False,
+                bufsize=0,
+            )
+        ).returncode is not None:
+            raise QEMUCommException(
+                f"The QEMU machine has failed to start: {fd.stderr.read().decode()}"
+            )
+        self._fd = fd
+
+        decoded_buf: str = self._timed_read(timeout=0.5)
         # print(decoded_buf)  # NOTE add a flag to disable ?
 
         # regex to find the pty port
-        pty = re.search(r"/dev/pts/\d+", decoded_buf)
+        pty = re.search(
+            r"/dev/pts/\d+", decoded_buf
+        )  # FIXME only for on *NIX at the moment
         if pty:
             self._pty_port = pathlib.Path(pty.group())
 
@@ -143,6 +152,8 @@ class QEMUCommLayer(CommunicationLayer, StatusAware):
                     break
 
                 buf += chunk
+        else:
+            raise QEMUCommException("The pipe is closed/brokenoptional")
 
         return buf.decode(errors="replace")
 
@@ -467,7 +478,7 @@ class QEMUCommLayer(CommunicationLayer, StatusAware):
         """
         raise NotImplementedError
 
-    def host_to_comm_path(self, host_path: Path) -> Path:
+    def host_to_comm_path(self, host_path: pathlib.Path) -> pathlib.Path:
         """
         Convert a path from the host namespace to the namespace visible to the communication
         platform (e.g., container, remote host).
