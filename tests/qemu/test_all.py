@@ -2,10 +2,12 @@
 # Copyright (C) 2025 Vrije Universiteit Brussel. All rights reserved.
 # SPDX-License-Identifier: MIT
 
-from benchkit.helpers.qemu import QEMUConfig
 from benchkit.platforms.qemu import QEMUIntrospection, QEMUMachine
+
+from benchkit.helpers.qemu import QEMUConfig, QEMUSystem
 from benchkit.helpers.linux.initramfs import InitBuilder
 from benchkit.helpers.cpu import CPUTopology
+
 from benchkit.communication.qemu import QEMUPty
 
 import pathlib
@@ -17,6 +19,7 @@ if __name__ == "__main__":
         print("This test assumes that a build directory is pre-made for QEMU")
         exit(1)
 
+    supported_accelerators = QEMUConfig.supported_accelerators(arch=QEMUSystem.x86_64)
     qemu_config = QEMUConfig(
         cpu_topology=CPUTopology(nb_cores=4, nb_threads_per_core=2),
         memory=4069,
@@ -25,6 +28,7 @@ if __name__ == "__main__":
         enable_pty=True,
         artifacts_dir="./build",
         clean_build=False,
+        accel=supported_accelerators[1],
     )
     subprocess.run("echo 'hello world!' > hello.txt", shell=True)
 
