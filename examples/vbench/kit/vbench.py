@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: MIT
 
 import pathlib
-import tempfile
 import os
 import re
 
@@ -13,6 +12,7 @@ from typing import AnyStr
 from benchkit.benchmark import Benchmark
 from benchkit.utils.misc import TimeMeasure
 from benchkit.platforms import Platform
+from benchkit.communication import CommunicationLayer
 
 
 class Scenario(Enum):
@@ -23,6 +23,29 @@ class Scenario(Enum):
     POPULAR = "popular"
 
 
+    def video_dir(self, vbench_root: pathlib.Path) -> pathlib.Path:
+        video_dir: pathlib.Path = vbench_root / (
+            pathlib.Path("videos/crf0")
+            if self == self.UPLOAD
+            else pathlib.Path("videos/crf18")
+        )
+
+        if not (
+            video_dir.is_dir()
+            and os.access(video_dir, os.R_OK)
+            and os.access(video_dir, os.X_OK)
+        ):
+            raise Exception(f"video_dir: {video_dir} is not a valid video directory")
+
+        return video_dir
+
+    def inputs(self, vbench_root:pathlib.Path) -> list[pathlib.Path]:
+        return [
+            pathlib.Path(x)
+            for x in os.listdir(self.video_dir(vbench_root))
+            if re.search("mkv$", x) or re.search("y4m$", x) or re.search("mp4$", x)
+        ]
+
 @dataclass
 class VideoStat:
     resolution: int
@@ -30,47 +53,47 @@ class VideoStat:
     num_frames: int
 
 
-class vbenchConfig:
-    def __init__(
-        self,
-        # Transcoding scenario
-        scenario: Scenario,
-        # Path to ffmpeg installation folder
-        ffmpeg_dir: pathlib.Path,
-        # Where to save transcoded videos
-        output_dir: pathlib.Path = pathlib.Path(tempfile.gettempdir()),
-        # FFmpeg encoder to use
-        encoder: str = "libx264",  # FIXME move to an enum when set is known
-    ) -> None:
-        self.scenario: pathlib.Path = scenario
-        self.ffmpeg_dir: pathlib.Path = ffmpeg_dir
-        self.output_dir: pathlib.Path = output_dir
-        self.encoder: pathlib.Path = encoder
+# Configuration for vbench benchmark
+# class vbenchConfig:
+#     def __init__(
+#         self,
+#         scenario: Scenario,  # Transcoding scenario
+#         output_dir: pathlib.Path = pathlib.Path(
+#             tempfile.gettempdir()
+#         ),  # Where to save transcoded videos
+#         encoder: str = "libx264",  # FFmpeg encoder to use FIXME move to an enum when set is known
+#     ) -> None:
+#         self.scenario: pathlib.Path = scenario
+#         self.output_dir: pathlib.Path = output_dir
+#         self.encoder: pathlib.Path = encoder
 
-        self.ffmpeg: pathlib.Path = self.ffmpeg_dir / "ffmpeg"
-        if not (self.ffmpeg.exists() and os.access(self.ffmpeg, os.X_OK)):
-            raise Exception(
-                f"Cannot find a ffmpeg executable in ffmpeg_dir: {self.ffmpeg_dir}"
-            )
+#         if not (self.output_dir.is_dir() and os.access(self.output_dir, os.W_OK)):
+#             raise Exception(f"Output directory {self.output_dir} is non writable")
 
-        self.ffprobe: pathlib.Path = self.ffmpeg_dir / "ffprobe"
-        if not (self.ffprobe.exists() and os.access(self.ffprobe, os.X_OK)):
-            raise Exception(
-                f"Cannot find a ffprobe executable in ffmpeg_dir: {self.ffmpeg_dir}"
-            )
-
-        if not (self.output_dir.is_dir() and os.access(self.output_dir, os.W_OK)):
-            raise Exception(f"Output directory {self.output_dir} is non writable")
 
 
 class vbenchBenchmark(Benchmark):
     def __init__(
         self,
         platform: Platform,
-        vbench_root: pathlib.Path,
+        vbench_root: pathlib.Path = pathlib.Path,
     ):
-        super().__init__(platform=platform)
-        self._vbench_root = vbench_root
+        self._vbench_root: pathlib.Path = vbench_root  # this might be useless
+        self._vbench_bin: pathlib.Path = self._vbench_root / "bin"
+
+        self.ffmpeg: pathlib.Path = self._vbench_bin / "ffmpeg"
+        if not (self.ffmpeg.exists() and os.access(self.ffmpeg, os.X_OK)):
+            raise Exception(
+                f"Cannot find a ffmpeg executable in ffmpeg_dir: {self.ffmpeg_dir}"
+            )
+
+        self.ffprobe: pathlib.Path = self._vbench_bin / "ffprobe"
+        if not (self.ffprobe.exists() and os.access(self.ffprobe, os.X_OK)):
+            raise Exception(
+                f"Cannot find a ffprobe executable in ffmpeg_dir: {self.ffmpeg_dir}"
+            )
+
+        self.platform: Platform = platform
 
     @staticmethod
     def get_run_var_names() -> list[str]:
@@ -81,61 +104,39 @@ class vbenchBenchmark(Benchmark):
             List[str]: the names of the run variables.
         """
         return [
-            "config",
-            "input_video",
+            "video_name",
+            "scenario",
+            "output_dir",
+            "encoder",
+            "video_dir",
         ]
 
-    def single_run(self, config: vbenchConfig, input_video: pathlib.Path) -> str:
-        video_dir: pathlib.Path = (
-            self._vbench_root / "videos" / "crf0"
-            if config.scenario == Scenario.UPLOAD
-            else self._vbench_root / "videos" / "crf18"
-        )
+    def single_run(
+        self,
+        video_name: str,  # this is the name of the video that requires adding the correct prefix
+        scenario: Scenario,
+        output_dir: pathlib.Path,
+        video_dir: pathlib.Path,
+        encoder: str,
+    ) -> str:
+        video: pathlib.Path = video_dir / video_name
+        output_video: pathlib.Path = output_dir / video_name
+        stats: VideoStat = self.get_video_stats(video)
 
-        if not (
-            video_dir.is_dir()
-            and os.access(video_dir, os.R_OK)
-            and os.access(video_dir, os.X_OK)
-        ):
-            raise Exception(f"video_dir: {video_dir} is not a valid video directory")
+        if scenario == Scenario.UPLOAD:
+            settings: list[str] = ["-crf", "18"]
+            # self.encode() # TODO compute elapsed
+        else:
+            target_bitrate: int = (
+                3 * stats.resolution if stats.framerate > 30 else 2 * stats.resolution
+            )
+            bitrate: int = self.get_bitrate(video=video)
+            target_bitrate: float = (
+                bitrate / 2 if target_bitrate > bitrate / 2 else target_bitrate
+            )
+            settings: list[str] = ["-b:v", str(target_bitrate)]
 
-        if video_dir.absolute() == config.output_dir.absolute():
-            raise Exception("Output and video input directory can not be the same")
-
-        inputs = {
-            pathlib.Path(x)
-            for x in os.listdir(video_dir)
-            if re.search("mkv$", x) or re.search("y4m$", x) or re.search("mp4$", x)
-        }
-
-        
-
-        total_frames: int = 0
-        total_elapsed: float = 0.0
-        total_frames: int = 0
-        res: list[str] = list()
-        for video_name in inputs:
-            video: pathlib.Path = video_dir / video_name
-            output_video: pathlib.Path = config.output_dir / video_name
-            stats: VideoStat = self.get_video_stats(video)
-
-            if config.scenario == Scenario.UPLOAD:
-                settings: list[str] = ["-crf", "18"]
-                # self.encode() # TODO compute elapsed
-            else:
-                total_frames += stats.num_frames
-                target_bitrate: int = (
-                    3 * stats.resolution
-                    if stats.framerate > 30
-                    else 2 * stats.resolution
-                )
-                bitrate: int = self.get_bitrate(video=video)
-                target_bitrate: float = (
-                    bitrate / 2 if target_bitrate > bitrate / 2 else target_bitrate
-                )
-                settings: list[str] = ["-b:v", str(target_bitrate)]
-
-            match config.scenario:
+            match scenario:
                 case Scenario.LIVE:
                     # adjust effort level depending on the video resolution
                     if (stats.resolution / 1000) > 4000:
@@ -146,7 +147,7 @@ class vbenchBenchmark(Benchmark):
                         settings += ["-preset", "veryfast", "-tune", "zerolatency"]
 
                     elapsed: float = self.encode(
-                        self.ffmpeg, video, settings, output_video, config.encoder
+                        self.ffmpeg, video, settings, output_video, encoder
                     )
                 case Scenario.VOD | Scenario.PLATFORM:
                     settings += ["-preset", "medium"]
@@ -154,7 +155,7 @@ class vbenchBenchmark(Benchmark):
                         video=video,
                         settings=settings,
                         output_file=output_video,
-                        encoder=config.encoder,
+                        encoder=encoder,
                     )
                     stats.num_frames *= 2
                 case Scenario.POPULAR:
@@ -163,27 +164,17 @@ class vbenchBenchmark(Benchmark):
                         video=video,
                         settings=settings,
                         output_file=output_video,
-                        encoder=config.encoder,
+                        encoder=encoder,
                     )
                     stats.num_frames *= 2
 
                 case _:
                     raise NotImplementedError
 
-            psnr: float = self.get_psnr(output_video=output_video, input_video=video)
-            transcode_bitrate = self.get_bitrate(video=output_video)
-            res += f"{video_name},{elapsed}, {psnr}, {transcode_bitrate}"
+        psnr: float = self.get_psnr(output_video=output_video, input_video=video)
+        transcode_bitrate = self.get_bitrate(video=output_video)
 
-            # print("{},{},{},{}".format(v_name, elapsed, psnr, transcode_bitrate))
-            total_elapsed += elapsed
-            total_frames += stats.num_frames
-
-        res += ""
-        res += f"total_elapsed:{total_elapsed}"
-        res += f"total_frames:{total_frames}"
-        res += f"avg_fps:{total_frames / total_elapsed}"
-
-        return res
+        return f"elapsed:{elapsed},frames:{stats.num_frames},psnr:{psnr},bitrate:{transcode_bitrate}"
 
     def encode(
         self,
