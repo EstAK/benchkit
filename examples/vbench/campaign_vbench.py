@@ -125,7 +125,7 @@ if __name__ == "__main__":
         build_ffmpeg(vbench_root=vbench_root)
 
     # config: vbenchBenchmark = vbenchConfig(scenario=Scenario.UPLOAD)
-    scenario: Scenario = Scenario.UPLOAD
+    scenario: Scenario = Scenario.LIVE
     inputs: list[pathlib.Path] = scenario.inputs(vbench_root)
 
     benchmark = vbenchBenchmark(
@@ -137,11 +137,16 @@ if __name__ == "__main__":
         benchmark=benchmark,
         nb_runs=1,
         variables={
-            "video_name": inputs,
-            "scenario": scenario,
-            "output_dir": pathlib.Path(tempfile.gettempdir()),
-            "encoder": "libx264",
-            "video_dir": scenario.video_dir(vbench_root),
+            "video_name": [inputs[0]],
+            "scenario": [
+                # Scenario.LIVE,
+                # Scenario.PLATFORM,
+                # Scenario.VOD,
+                Scenario.POPULAR,
+            ],
+            "output_dir": [pathlib.Path(tempfile.gettempdir())],
+            "encoder": ["libx264"],
+            "video_dir": [scenario.video_dir(vbench_root)],
         },
         constants=None,
         debug=False,
