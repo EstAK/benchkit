@@ -22,7 +22,6 @@ class Scenario(Enum):
     VOD = "vod"
     POPULAR = "popular"
 
-
     def video_dir(self, vbench_root: pathlib.Path) -> pathlib.Path:
         video_dir: pathlib.Path = vbench_root / (
             pathlib.Path("videos/crf0")
@@ -39,12 +38,13 @@ class Scenario(Enum):
 
         return video_dir
 
-    def inputs(self, vbench_root:pathlib.Path) -> list[pathlib.Path]:
+    def inputs(self, vbench_root: pathlib.Path) -> list[pathlib.Path]:
         return [
             pathlib.Path(x)
             for x in os.listdir(self.video_dir(vbench_root))
             if re.search("mkv$", x) or re.search("y4m$", x) or re.search("mp4$", x)
         ]
+
 
 @dataclass
 class VideoStat:
@@ -71,7 +71,6 @@ class VideoStat:
 #             raise Exception(f"Output directory {self.output_dir} is non writable")
 
 
-
 class vbenchBenchmark(Benchmark):
     def __init__(
         self,
@@ -94,6 +93,22 @@ class vbenchBenchmark(Benchmark):
             )
 
         self.platform: Platform = platform
+        super().__init__(
+            command_wrappers=[],
+            command_attachments=[],
+            shared_libs=[],
+            pre_run_hooks=[],
+            post_run_hooks=[],
+        )
+
+    def build_bench(
+        self,
+        **kwargs,
+    ) -> None:
+        """
+        Build the benchmark, feeding to the function the build variables.
+        """
+        pass  # FIXME probably move the build steps here
 
     @staticmethod
     def get_run_var_names() -> list[str]:
@@ -111,13 +126,34 @@ class vbenchBenchmark(Benchmark):
             "video_dir",
         ]
 
+    @property
+    def bench_src_path(self) -> pathlib.Path:
+        """
+        Return the path to the source of the benchmark.
+
+        Returns:
+            pathlib.Path: the path to the source of the benchmark.
+        """
+        return self._vbench_root
+
+    @staticmethod
+    def get_build_var_names() -> list[str]:
+        """
+        Get the names of the build variables.
+
+        Returns:
+            List[str]: the names of the build variables.
+        """
+        return []
+
     def single_run(
         self,
-        video_name: str,  # this is the name of the video that requires adding the correct prefix
+        video_name: pathlib.Path,  # this is the name of the video that requires adding the correct prefix
         scenario: Scenario,
         output_dir: pathlib.Path,
         video_dir: pathlib.Path,
         encoder: str,
+        **kwargs,
     ) -> str:
         video: pathlib.Path = video_dir / video_name
         output_video: pathlib.Path = output_dir / video_name
@@ -250,13 +286,12 @@ class vbenchBenchmark(Benchmark):
 
         # run ffprobe
         cmd: list[str] = [
-            self.ffprobe,
+            str(self.ffprobe),
             "-show_entries",
             "stream=width,height",
-            video,
-            "2>&1",
+            str(video),
         ]
-        out: str = self.platform.comm.shell(command=cmd, shell=True)
+        out: str = self.platform.comm.shell(command=cmd)
         width: re.Match[AnyStr] | None = re.search("width=([0-9]+)", out)
         if width is None:
             raise Exception(
@@ -279,16 +314,15 @@ class vbenchBenchmark(Benchmark):
 
         framerate: float = float(frame.group(1))
         cmd: list[str] = [
-            self.ffprobe,
+            str(self.ffprobe),
             "-select_streams",
             "v:0",
             "-count_frames",
             "-show_entries",
             "stream=nb_read_frames",
-            video,
-            "2>&1",
+            str(video),
         ]
-        out: str = self.platform.comm.shell(command=cmd, shell=True)
+        out: str = self.platform.comm.shell(command=cmd)
         num_frames: re.Match[AnyStr] | None = re.search("nb_read_frames=([0-9]+)", out)
 
         if num_frames is None:
