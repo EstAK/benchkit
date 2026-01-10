@@ -31,8 +31,8 @@ if __name__ == "__main__":
         accel=supported_accelerators[1],
     )
     subprocess.run("echo 'hello world!' > hello.txt", shell=True)
-
     qemu_config.init = InitBuilder.default()
+
     with qemu_config.spawn() as qemu_comm:
         qemu: QEMUIntrospection = QEMUIntrospection(
             comm_layer=qemu_comm, qemu_config=qemu_config
@@ -44,3 +44,5 @@ if __name__ == "__main__":
                 command="cat /tmp/world.txt", print_output=False, print_input=False
             )
             print(str_)
+
+            # async process

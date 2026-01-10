@@ -49,6 +49,7 @@ class Accellerator(Enum):
 class QEMUConfig:
     def __init__(
         self,
+        # platform
         cpu_topology: CPUTopology,
         memory: int,
         kernel: PathType,

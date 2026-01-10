@@ -176,6 +176,7 @@ def shell_out(
                 cwd=current_dir,
                 env=environment,
                 stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
             )
             if std_input is None
             else subprocess.Popen(
