@@ -12,7 +12,6 @@ from typing import AnyStr
 from benchkit.benchmark import Benchmark
 from benchkit.utils.misc import TimeMeasure
 from benchkit.platforms import Platform
-from benchkit.communication import CommunicationLayer
 
 
 class Scenario(Enum):
@@ -51,24 +50,6 @@ class VideoStat:
     resolution: int
     framerate: float
     num_frames: int
-
-
-# Configuration for vbench benchmark
-# class vbenchConfig:
-#     def __init__(
-#         self,
-#         scenario: Scenario,  # Transcoding scenario
-#         output_dir: pathlib.Path = pathlib.Path(
-#             tempfile.gettempdir()
-#         ),  # Where to save transcoded videos
-#         encoder: str = "libx264",  # FFmpeg encoder to use FIXME move to an enum when set is known
-#     ) -> None:
-#         self.scenario: pathlib.Path = scenario
-#         self.output_dir: pathlib.Path = output_dir
-#         self.encoder: pathlib.Path = encoder
-
-#         if not (self.output_dir.is_dir() and os.access(self.output_dir, os.W_OK)):
-#             raise Exception(f"Output directory {self.output_dir} is non writable")
 
 
 class vbenchBenchmark(Benchmark):
@@ -159,9 +140,12 @@ class vbenchBenchmark(Benchmark):
         output_video: pathlib.Path = output_dir / video_name
         stats: VideoStat = self.get_video_stats(video)
 
+        self.get_psnr(output_video, video)
+        exit(1)
+
         if scenario == Scenario.UPLOAD:
             settings: list[str] = ["-crf", "18"]
-            # self.encode() # TODO compute elapsed
+            elapsed: float = self.encode()
         else:
             target_bitrate: int = (
                 3 * stats.resolution if stats.framerate > 30 else 2 * stats.resolution
@@ -222,13 +206,15 @@ class vbenchBenchmark(Benchmark):
         """perform the transcode operation using ffmpeg"""
 
         cmd: list[str] = (
-            [self.ffmpeg, "-i", video, "-c:v", encoder, "-threads", str(1)]
+            [str(self.ffmpeg), "-i", str(video), "-c:v", encoder, "-threads", str(1)]
             + settings
-            + ["-y", output]
+            + ["-y", str(output)]
         )
+        # print(cmd)
+        # exit(1)
 
         with TimeMeasure() as time_measure:
-            _: str = self.platform.comm.shell(command=cmd, shell=True)
+            _: str = self.platform.comm.shell(command=cmd)
 
         return time_measure.duration_ns
 
@@ -247,23 +233,35 @@ class vbenchBenchmark(Benchmark):
         return time_to_encode1 + time_to_encode2
 
     def get_psnr(self, output_video: pathlib.Path, input_video: pathlib.Path) -> float:
-        cmd: str = (
-            f"{self.ffmpeg} "
-            f"-i {input_video} -i {output_video} "
-            '-lavfi "[0:v] setpts=PTS-STARTPTS[out0]; '
+        cmd: list[str] = [
+            str(self.ffmpeg),
+            "-i",
+            str(input_video),
+            "-i",
+            str(output_video),
+            "-lavfi",
+            "[0:v] setpts=PTS-STARTPTS[out0]; "
             "[1:v] setpts=PTS-STARTPTS[out1]; "
-            '[out0][out1] psnr=log.txt" '
-            "-f null - 2>&1"
+            "[out0][out1] psnr=log.txt",
+            "-f",
+            "null",
+            "-",
+        ]
+
+        out: str = self.platform.comm.shell(
+            command=cmd,
+            print_output=False,
+            print_input=True,
+            shell=True,
         )
 
-        out: str = self.platform.comm.shell(command=cmd, shell=True)
         m: re.Match[AnyStr] | None = re.search("average:([0-9]+\.[0-9]+)", out)
+        print("PSNR output:")
+        print(out)
 
-        # cleanup
-        self.platform.comm.shell(command="rm log.txt")
-
+        self.platform.comm.remove(path=pathlib.Path("log.txt"), recursive=False)
         if m is None:
-            m: re.Match[AnyStr] | None = re.search("average:(inf)", err.decode("utf-8"))
+            m: re.Match[AnyStr] | None = re.search("average:(if)", out)
             if m is None:
                 raise Exception("no average")
             return 100.0
@@ -272,26 +270,42 @@ class vbenchBenchmark(Benchmark):
 
     def get_bitrate(self, video: pathlib.Path) -> int:
         """Returns bitrate (bit/s)"""
-        cmd: list[str] = [self.ffprobe, "-i", video, "2>&1"]
-        out: str = self.platform.comm.shell(command=cmd, shell=True)
+        # cmd: list[str] = [str(self.ffprobe), "-i", str(video)]
 
-        m: re.Match[AnyStr] | None = re.search("bitrate: ([0-9]+) kb/s", out)
+        cmd: list[str] = [
+            str(self.ffprobe),
+            "-show_entries",
+            "format=bit_rate",
+            str(video),
+        ]
+
+        out: str = self.platform.comm.shell(command=cmd)
+        m: re.Match[AnyStr] | None = re.search("bit_rate=([0-9]+)", out)
         if m is None:
             raise Exception("Cannot parse the bitrate")
 
-        return int(m.group(1)) * 1000  # report in b/s
+        return int(m.group(1))  # report in b/s
 
     def get_video_stats(self, video: pathlib.Path) -> VideoStat:
         """Returns resolution (pixels/frame), and framerate (fps) of a video"""
 
-        # run ffprobe
+        stderr_file: pathlib.Path = pathlib.Path("output.txt")
+
         cmd: list[str] = [
             str(self.ffprobe),
             "-show_entries",
-            "stream=width,height",
+            "stream=width,height,r_frame_rate",
             str(video),
         ]
-        out: str = self.platform.comm.shell(command=cmd)
+
+        out: str = self.platform.comm.shell(
+            command=cmd,
+            environment=os.environ.copy(),
+            ignore_any_error_code=True,
+            print_output=False,
+            print_input=False,
+        )
+
         width: re.Match[AnyStr] | None = re.search("width=([0-9]+)", out)
         if width is None:
             raise Exception(
@@ -306,13 +320,15 @@ class vbenchBenchmark(Benchmark):
 
         resolution: int = int(width.group(1)) * int(height.group(1))
 
-        frame: re.Match[AnyStr] | None = re.search("([0-9\.]+) fps", out)
+        frame: re.Match[AnyStr] | None = re.search(
+            r"r_frame_rate=(.*)$", out, re.MULTILINE
+        )
         if frame is None:
             raise Exception(
                 f"Problem in fetching framerate with {self.ffprobe} on {video}"
             )
 
-        framerate: float = float(frame.group(1))
+        framerate: float = round(float(eval(frame.group(1))), 2)
         cmd: list[str] = [
             str(self.ffprobe),
             "-select_streams",
