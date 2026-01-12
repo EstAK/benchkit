@@ -9,15 +9,20 @@ import zipfile
 import wget
 import multiprocessing
 import tarfile
-import subprocess
-
-import benchkit
 
 from kit.vbench import vbenchBenchmark, Scenario
 from benchkit.platforms import get_current_platform
 from benchkit.campaign import CampaignCartesianProduct, CampaignSuite
 from benchkit.utils.git import clone_repo
 from benchkit.shell.shell import shell_out
+from benchkit.benchmark import PathEncoder
+
+
+class VbenchEncoder(PathEncoder):
+    def default(self, obj):
+        if isinstance(obj, Scenario):
+            return str(obj)
+        return super().default(obj)
 
 
 def build_x264(vbench_root: pathlib.Path) -> None:
@@ -131,6 +136,7 @@ if __name__ == "__main__":
     benchmark = vbenchBenchmark(
         platform=get_current_platform(),
         vbench_root=vbench_root,
+        encoder_cls=VbenchEncoder,
     )
     campaign = CampaignCartesianProduct(
         name="vbench",
