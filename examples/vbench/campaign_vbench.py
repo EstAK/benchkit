@@ -4,13 +4,12 @@
 
 import os
 import pathlib
-import tempfile
 import zipfile
 import wget
 import multiprocessing
 import tarfile
 
-from kit.vbench import vbenchBenchmark, Scenario
+from kit.vbench import Scenario, vbenchUpload, vbenchOther
 from benchkit.platforms import get_current_platform
 from benchkit.campaign import CampaignCartesianProduct, CampaignSuite
 from benchkit.utils.git import clone_repo
@@ -18,7 +17,11 @@ from benchkit.shell.shell import shell_out
 from benchkit.benchmark import PathEncoder
 
 
-class VbenchEncoder(PathEncoder):
+class vbenchEncoder(PathEncoder):
+    """
+    Custom JSON encoder for vbench benchmarks.
+    """
+
     def default(self, obj):
         if isinstance(obj, Scenario):
             return str(obj)
@@ -27,9 +30,14 @@ class VbenchEncoder(PathEncoder):
 
 def build_x264(vbench_root: pathlib.Path) -> None:
     """
+    Builds x264 from source and installs it into the vbench ffmpeg_build directory.
+
     dependencies:
         - yasm
         - nasm
+
+    Args:
+        vbench_root (pathlib.Path): The root directory of the vbench installation.
     """
     x264_bin: pathlib.Path = vbench_root / "bin" / "x264"
     x264_sources: pathlib.Path = vbench_root / "ffmpeg_sources" / "x264"
@@ -71,6 +79,9 @@ def build_x264(vbench_root: pathlib.Path) -> None:
 
 
 def build_ffmpeg(vbench_root: pathlib.Path) -> None:
+    """
+    Builds FFmpeg from source and installs it into the vbench ffmpeg_build directory.
+    """
     ffmpeg_tar: pathlib.Path = pathlib.Path("ffmpeg-7.0.tar.xz")
     ffmpeg_src: pathlib.Path = pathlib.Path("ffmpeg-7.0")
 
@@ -129,38 +140,52 @@ if __name__ == "__main__":
     if not (vbench_root / "bin" / "ffmpeg").exists():
         build_ffmpeg(vbench_root=vbench_root)
 
-    # config: vbenchBenchmark = vbenchConfig(scenario=Scenario.UPLOAD)
-    scenario: Scenario = Scenario.LIVE
-    inputs: list[pathlib.Path] = scenario.inputs(vbench_root)
-
-    benchmark = vbenchBenchmark(
+    upload_benchmark = vbenchUpload(
         platform=get_current_platform(),
         vbench_root=vbench_root,
-        encoder_cls=VbenchEncoder,
+        encoder_cls=vbenchEncoder,
     )
-    campaign = CampaignCartesianProduct(
-        name="vbench",
-        benchmark=benchmark,
-        nb_runs=1,
-        variables={
-            "video_name": [inputs[0]],
-            "scenario": [
-                # Scenario.LIVE,
-                # Scenario.PLATFORM,
-                # Scenario.VOD,
-                Scenario.POPULAR,
-            ],
-            "output_dir": [pathlib.Path(tempfile.gettempdir())],
-            "encoder": ["libx264"],
-            "video_dir": [scenario.video_dir(vbench_root)],
-        },
-        constants=None,
-        debug=False,
-        gdb=False,
-        enable_data_dir=False,
-    )
-    campaigns = [campaign]
 
-    suite = CampaignSuite(campaigns=campaigns)
+    other_benchmark = vbenchOther(
+        platform=get_current_platform(),
+        vbench_root=vbench_root,
+        encoder_cls=vbenchEncoder,
+    )
+
+    suite = CampaignSuite(
+        campaigns=[
+            CampaignCartesianProduct(
+                name="vbenchUpload",
+                benchmark=upload_benchmark,
+                nb_runs=1,
+                variables={
+                    "video_name": upload_benchmark.input_videos(),
+                    "encoder": ["libx264"],
+                },
+                constants=None,
+                debug=False,
+                gdb=False,
+                enable_data_dir=False,
+            ),
+            CampaignCartesianProduct(
+                name="vbenchOther",
+                benchmark=other_benchmark,
+                nb_runs=1,
+                variables={
+                    "video_name": other_benchmark.input_videos(),
+                    "scenario": [
+                        Scenario.VOD,
+                        Scenario.LIVE,
+                        Scenario.POPULAR,
+                    ],
+                    "encoder": ["libx264"],
+                },
+                constants=None,
+                debug=False,
+                gdb=False,
+                enable_data_dir=True,
+            ),
+        ]
+    )
     suite.print_durations()
     suite.run_suite()
