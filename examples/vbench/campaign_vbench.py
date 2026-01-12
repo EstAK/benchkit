@@ -55,7 +55,14 @@ def build_x264(vbench_root: pathlib.Path) -> None:
         )
 
     env = os.environ.copy()
-    env.update({"AS": "yasm"})
+    env.update(
+        {
+            "AS": "yasm",
+            "CFLAGS": "-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0",
+            "LDFLAGS": "-no-pie",
+            "CPPFLAGS": "-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0",
+        }
+    )
 
     shell_out(
         [
@@ -63,6 +70,8 @@ def build_x264(vbench_root: pathlib.Path) -> None:
             f"--prefix={vbench_root / 'ffmpeg_build'}",
             f"--bindir={vbench_root / 'bin'}",
             "--enable-static",
+            "--enable-lto ",
+            "--enable-pic",
         ],
         environment=env,
         current_dir=x264_sources,
@@ -99,26 +108,30 @@ def build_ffmpeg(vbench_root: pathlib.Path) -> None:
         + os.pathsep
         + str(vbench_root / "ffmpeg_build" / "lib" / "pkgconfig")
     )
+
     shell_out(
-        command=[
-            "./configure",
-            "--disable-zlib",
-            "--disable-doc",
-            f"--prefix={vbench_root / 'ffmpeg_build'}",
-            f"--extra-cflags=-I{vbench_root / 'ffmpeg_build' / 'include'}",
-            f"--extra-ldflags=-L{vbench_root / 'ffmpeg_build' / 'lib'}",
-            f"--bindir={vbench_root / 'bin'}",
-            "--pkg-config-flags=--static",
-            "--enable-gpl",
-            "--enable-libx264",
-        ],
+        command=(
+            "./configure "
+            "--disable-zlib "
+            "--disable-doc "
+            f"--prefix={vbench_root / 'ffmpeg_build'} "
+            f"--extra-cflags=-I{vbench_root / 'ffmpeg_build' / 'include'} "
+            f'--extra-ldflags="-L{vbench_root / "ffmpeg_build" / "lib"} -ldl" '
+            f"--bindir={vbench_root / 'bin'} "
+            '--pkg-config-flags="--static" '
+            "--enable-gpl "
+            "--enable-libx264 "
+            # TODO add more encoder support if needed
+        ),
         environment=env,
-        print_input=True,
-        print_output=True,
+        print_input=False,
+        print_output=False,
         current_dir=ffmpeg_src,
     )
 
-    shell_out(command=["make", f"-j{multiprocessing.cpu_count()}"], current_dir=ffmpeg_src)
+    shell_out(
+        command=["make", f"-j{multiprocessing.cpu_count()}"], current_dir=ffmpeg_src
+    )
 
     shell_out(command=["make", "install"], current_dir=ffmpeg_src)
 
