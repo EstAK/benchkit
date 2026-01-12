@@ -7,7 +7,7 @@ import re
 
 from enum import Enum
 from dataclasses import dataclass
-from typing import AnyStr
+from typing import AnyStr, Any
 
 from benchkit.benchmark import Benchmark
 from benchkit.utils.misc import TimeMeasure
@@ -57,6 +57,7 @@ class vbenchBenchmark(Benchmark):
         self,
         platform: Platform,
         vbench_root: pathlib.Path = pathlib.Path,
+        **kwargs,
     ):
         self._vbench_root: pathlib.Path = vbench_root  # this might be useless
         self._vbench_bin: pathlib.Path = self._vbench_root / "bin"
@@ -80,6 +81,7 @@ class vbenchBenchmark(Benchmark):
             shared_libs=[],
             pre_run_hooks=[],
             post_run_hooks=[],
+            **kwargs,
         )
 
     def build_bench(
@@ -139,9 +141,6 @@ class vbenchBenchmark(Benchmark):
         video: pathlib.Path = video_dir / video_name
         output_video: pathlib.Path = output_dir / video_name
         stats: VideoStat = self.get_video_stats(video)
-
-        self.get_psnr(output_video, video)
-        exit(1)
 
         if scenario == Scenario.UPLOAD:
             settings: list[str] = ["-crf", "18"]
@@ -233,33 +232,19 @@ class vbenchBenchmark(Benchmark):
         return time_to_encode1 + time_to_encode2
 
     def get_psnr(self, output_video: pathlib.Path, input_video: pathlib.Path) -> float:
-        cmd: list[str] = [
-            str(self.ffmpeg),
-            "-i",
-            str(input_video),
-            "-i",
-            str(output_video),
-            "-lavfi",
-            "[0:v] setpts=PTS-STARTPTS[out0]; "
-            "[1:v] setpts=PTS-STARTPTS[out1]; "
-            "[out0][out1] psnr=log.txt",
-            "-f",
-            "null",
-            "-",
-        ]
-
-        out: str = self.platform.comm.shell(
-            command=cmd,
-            print_output=False,
-            print_input=True,
-            shell=True,
+        cmd = (
+            f"{self.ffmpeg} "
+            f"-i {input_video} "
+            f"-i {output_video} "
+            '-lavfi "[0:v] setpts=PTS-STARTPTS[out0]; [1:v] setpts=PTS-STARTPTS[out1]; [out0][out1] psnr=log.txt" '
+            "-f null - "
+            "2>&1"
         )
 
-        m: re.Match[AnyStr] | None = re.search("average:([0-9]+\.[0-9]+)", out)
-        print("PSNR output:")
-        print(out)
-
+        out: str = self.platform.comm.shell(command=cmd, shell=True)
         self.platform.comm.remove(path=pathlib.Path("log.txt"), recursive=False)
+
+        m: re.Match[AnyStr] | None = re.search("average:([0-9]+\.[0-9]+)", out)
         if m is None:
             m: re.Match[AnyStr] | None = re.search("average:(if)", out)
             if m is None:
@@ -288,8 +273,6 @@ class vbenchBenchmark(Benchmark):
 
     def get_video_stats(self, video: pathlib.Path) -> VideoStat:
         """Returns resolution (pixels/frame), and framerate (fps) of a video"""
-
-        stderr_file: pathlib.Path = pathlib.Path("output.txt")
 
         cmd: list[str] = [
             str(self.ffprobe),
@@ -349,3 +332,13 @@ class vbenchBenchmark(Benchmark):
         return VideoStat(
             resolution=resolution, framerate=framerate, num_frames=frame_count
         )
+
+    def parse_output_to_results(
+        self,
+        command_output: str,
+        run_variables: dict[str, Any],
+        **_kwargs,
+    ) -> dict[str, Any]:
+        return {
+            k: float(v) for k, v in [x.split(":") for x in command_output.split(",")]
+        }
