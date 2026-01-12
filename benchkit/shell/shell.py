@@ -158,13 +158,15 @@ def shell_out(
         remote_host=None,
     )
 
+    if shell and isinstance(arguments, list):
+        arguments = " ".join(arguments)
+
     if output_is_log:
 
         def flush_outlines():
             raw_outline = process.stdout.readline()
             while raw_outline:
                 outline = raw_outline.decode()
-                print(outline, end="")
                 outlines.append(outline)
                 raw_outline = process.stdout.readline()
 
