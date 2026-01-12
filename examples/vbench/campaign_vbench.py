@@ -2,19 +2,20 @@
 # Copyright (C) 2026 Vrije Universiteit Brussel. All rights reserved.
 # SPDX-License-Identifier: MIT
 
+import multiprocessing
 import os
 import pathlib
-import zipfile
-import wget
-import multiprocessing
 import tarfile
+import zipfile
 
-from kit.vbench import Scenario, vbenchUpload, vbenchOther
-from benchkit.platforms import get_current_platform
-from benchkit.campaign import CampaignCartesianProduct, CampaignSuite
-from benchkit.utils.git import clone_repo
-from benchkit.shell.shell import shell_out
+import wget
+from kit.vbench import Scenario, vbenchOther, vbenchUpload
+
 from benchkit.benchmark import PathEncoder
+from benchkit.campaign import CampaignCartesianProduct, CampaignSuite
+from benchkit.platforms import get_current_platform
+from benchkit.shell.shell import shell_out
+from benchkit.utils.git import clone_repo
 
 
 class vbenchEncoder(PathEncoder):
@@ -117,9 +118,7 @@ def build_ffmpeg(vbench_root: pathlib.Path) -> None:
         current_dir=ffmpeg_src,
     )
 
-    shell_out(
-        command=["make", f"-j{multiprocessing.cpu_count()}"], current_dir=ffmpeg_src
-    )
+    shell_out(command=["make", f"-j{multiprocessing.cpu_count()}"], current_dir=ffmpeg_src)
 
     shell_out(command=["make", "install"], current_dir=ffmpeg_src)
 
