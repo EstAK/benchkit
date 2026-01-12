@@ -1,18 +1,17 @@
 # Copyright (C) 2026 Vrije Universiteit Brussel. All rights reserved.
 # SPDX-License-Identifier: MIT
 
-import pathlib
 import os
+import pathlib
 import re
 import tempfile
-
-from enum import Enum
 from dataclasses import dataclass
-from typing import AnyStr, Any
+from enum import Enum
+from typing import Any, AnyStr
 
 from benchkit.benchmark import Benchmark
-from benchkit.utils.misc import TimeMeasure
 from benchkit.platforms import Platform
+from benchkit.utils.misc import TimeMeasure
 
 
 class Scenario(Enum):
@@ -42,15 +41,11 @@ class vbenchGeneric(Benchmark):
 
         self.ffmpeg: pathlib.Path = self._vbench_bin / "ffmpeg"
         if not (self.ffmpeg.exists() and os.access(self.ffmpeg, os.X_OK)):
-            raise Exception(
-                f"Cannot find a ffmpeg executable in ffmpeg_dir: {self.ffmpeg_dir}"
-            )
+            raise Exception(f"Cannot find a ffmpeg executable in ffmpeg_dir: {self.ffmpeg_dir}")
 
         self.ffprobe: pathlib.Path = self._vbench_bin / "ffprobe"
         if not (self.ffprobe.exists() and os.access(self.ffprobe, os.X_OK)):
-            raise Exception(
-                f"Cannot find a ffprobe executable in ffmpeg_dir: {self.ffmpeg_dir}"
-            )
+            raise Exception(f"Cannot find a ffprobe executable in ffmpeg_dir: {self.ffmpeg_dir}")
 
         self.platform: Platform = platform
         super().__init__(
@@ -61,6 +56,41 @@ class vbenchGeneric(Benchmark):
             post_run_hooks=[],
             **kwargs,
         )
+
+    @property
+    def bench_src_path(self) -> pathlib.Path:
+        """
+        Return the path to the source of the benchmark.
+
+        Returns:
+            pathlib.Path: the path to the source of the benchmark.
+        """
+        return self._vbench_root
+
+    @staticmethod
+    def check_video_dir(video_dir: pathlib.Path) -> None:
+        """
+        Check if the video directory is valid.
+        Args:
+            video_dir (pathlib.Path):
+                path to the video directory
+        Raises:
+            Exception: if the video directory is not valid
+        """
+        if not (
+            video_dir.is_dir() and os.access(video_dir, os.R_OK) and os.access(video_dir, os.X_OK)
+        ):
+            raise Exception(f"video_dir: {video_dir} is not a valid video directory")
+
+    @staticmethod
+    def get_build_var_names() -> list[str]:
+        """
+        Get the names of the build variables.
+
+        Returns:
+            List[str]: the names of the build variables.
+        """
+        return []
 
     def input_videos(self) -> list[pathlib.Path]:
         """
@@ -83,43 +113,6 @@ class vbenchGeneric(Benchmark):
         Build the benchmark, feeding to the function the build variables.
         """
         pass  # FIXME probably move the build steps here
-
-    @staticmethod
-    def check_video_dir(video_dir: pathlib.Path) -> None:
-        """
-        Check if the video directory is valid.
-        Args:
-            video_dir (pathlib.Path):
-                path to the video directory
-        Raises:
-            Exception: if the video directory is not valid
-        """
-        if not (
-            video_dir.is_dir()
-            and os.access(video_dir, os.R_OK)
-            and os.access(video_dir, os.X_OK)
-        ):
-            raise Exception(f"video_dir: {video_dir} is not a valid video directory")
-
-    @property
-    def bench_src_path(self) -> pathlib.Path:
-        """
-        Return the path to the source of the benchmark.
-
-        Returns:
-            pathlib.Path: the path to the source of the benchmark.
-        """
-        return self._vbench_root
-
-    @staticmethod
-    def get_build_var_names() -> list[str]:
-        """
-        Get the names of the build variables.
-
-        Returns:
-            List[str]: the names of the build variables.
-        """
-        return []
 
     def encode(
         self,
@@ -288,25 +281,17 @@ class vbenchGeneric(Benchmark):
 
         width: re.Match[AnyStr] | None = re.search("width=([0-9]+)", out)
         if width is None:
-            raise Exception(
-                f"Problem in fetching video width with {self.ffprobe} on {video}"
-            )
+            raise Exception(f"Problem in fetching video width with {self.ffprobe} on {video}")
 
         height: re.Match[AnyStr] | None = re.search("height=([0-9]+)", out)
         if height is None:
-            raise Exception(
-                f"Problem in fetching video height with {self.ffprobe} on {video}"
-            )
+            raise Exception(f"Problem in fetching video height with {self.ffprobe} on {video}")
 
         resolution: int = int(width.group(1)) * int(height.group(1))
 
-        frame: re.Match[AnyStr] | None = re.search(
-            r"r_frame_rate=(.*)$", out, re.MULTILINE
-        )
+        frame: re.Match[AnyStr] | None = re.search(r"r_frame_rate=(.*)$", out, re.MULTILINE)
         if frame is None:
-            raise Exception(
-                f"Problem in fetching framerate with {self.ffprobe} on {video}"
-            )
+            raise Exception(f"Problem in fetching framerate with {self.ffprobe} on {video}")
 
         framerate: float = round(float(eval(frame.group(1))), 2)
         cmd: list[str] = [
@@ -326,9 +311,7 @@ class vbenchGeneric(Benchmark):
 
         frame_count: int = int(num_frames.group(1))
 
-        return VideoStat(
-            resolution=resolution, framerate=framerate, num_frames=frame_count
-        )
+        return VideoStat(resolution=resolution, framerate=framerate, num_frames=frame_count)
 
     def parse_output_to_results(
         self,
@@ -336,9 +319,7 @@ class vbenchGeneric(Benchmark):
         run_variables: dict[str, Any],
         **_kwargs,
     ) -> dict[str, Any]:
-        return {
-            k: float(v) for k, v in [x.split(":") for x in command_output.split(",")]
-        }
+        return {k: float(v) for k, v in [x.split(":") for x in command_output.split(",")]}
 
 
 class vbenchOther(vbenchGeneric):
@@ -396,9 +377,7 @@ class vbenchOther(vbenchGeneric):
             3 * stats.resolution if stats.framerate > 30 else 2 * stats.resolution
         )
         bitrate: int = self.get_bitrate(video=video)
-        target_bitrate: float = (
-            bitrate / 2 if target_bitrate > bitrate / 2 else target_bitrate
-        )
+        target_bitrate: float = bitrate / 2 if target_bitrate > bitrate / 2 else target_bitrate
         settings: list[str] = ["-b:v", str(target_bitrate)]
 
         match scenario:
@@ -442,7 +421,9 @@ class vbenchOther(vbenchGeneric):
         psnr: float = self.get_psnr(output_video=output_video, input_video=video)
         transcode_bitrate = self.get_bitrate(video=output_video)
 
-        return f"elapsed:{elapsed},frames:{stats.num_frames},psnr:{psnr},bitrate:{transcode_bitrate}"
+        return (
+            f"elapsed:{elapsed},frames:{stats.num_frames},psnr:{psnr},bitrate:{transcode_bitrate}"
+        )
 
 
 class vbenchUpload(vbenchGeneric):
@@ -502,4 +483,6 @@ class vbenchUpload(vbenchGeneric):
         psnr: float = self.get_psnr(output_video=output_video, input_video=input_video)
         transcode_bitrate = self.get_bitrate(video=output_video)
 
-        return f"elapsed:{elapsed},frames:{stats.num_frames},psnr:{psnr},bitrate:{transcode_bitrate}"
+        return (
+            f"elapsed:{elapsed},frames:{stats.num_frames},psnr:{psnr},bitrate:{transcode_bitrate}"
+        )
