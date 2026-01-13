@@ -13,6 +13,7 @@ import getpass
 import os
 import os.path
 import subprocess
+from abc import ABC, abstractmethod
 from functools import lru_cache
 from pathlib import Path
 from shutil import which
