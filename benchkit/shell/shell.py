@@ -158,6 +158,9 @@ def shell_out(
         remote_host=None,
     )
 
+    if shell and isinstance(arguments, list):
+        arguments = " ".join(arguments)
+
     if output_is_log:
 
         def flush_outlines():
