@@ -150,20 +150,36 @@ class Kernel:
             platform=platform,
         )
 
-    def add_patch(self, patch: Patch) -> None:
+    def add_patch(self, patch_file: pathlib.Path) -> None:
         """
         Add a patch to the kernel.
         """
 
-        self._patches.append(patch)
+        self._patches.append(
+            Patch(
+                patch_file=patch_file,
+                cwd=self._source_dir,
+                platform=self._platform,
+            )
+        )
 
-    def add_patches(self, patches: Iterable[Patch]) -> None:
+    def add_patches(self, patches: Iterable[pathlib.Path]) -> None:
         """
         Add multiple patches to the kernel.
         """
 
-        for patch in patches:
-            self.add_patch(patch=patch)
+        for pf in patches:
+            self.add_patch(patch_file=pf)
+
+    def distclean(self) -> None:
+        """
+        Clean the kernel source tree.
+        """
+
+        self._platform.comm.shell(
+            command=["make", "distclean"],
+            current_dir=self._source_dir,
+        )
 
     def compile(self) -> None:
         """
@@ -198,6 +214,16 @@ class Kernel:
         )
 
         self.config = KConfig.from_file(self._source_dir / ".config")
+
+    def load_existing_config(self) -> None:
+        """
+        Load an existing kernel configuration from the source directory.
+        """
+        config_file: pathlib.Path = self._source_dir / ".config"
+        if not config_file.exists():
+            raise Exception(f"kernel config file {config_file} does not exist")
+
+        self.config = KConfig.from_file(config_file)
 
         # logging.info("Cleaning the .config")
         # if subprocess.run(["make", "distclean"], cwd=base_path).returncode != 0:
