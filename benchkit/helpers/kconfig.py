@@ -34,12 +34,6 @@ class _EOL(__Token):
 
 
 @dataclass
-class KConfigEntry:
-    key: str
-    value: int | bool | str
-
-
-@dataclass
 class _Ident:
     content: str
 
@@ -76,6 +70,12 @@ _transitions: dict[None | _KConfigSyntax, None | _KConfigSyntax] = {
     int: [_EOL],
     _EOL: [],
 }
+
+
+@dataclass
+class KConfigEntry:
+    key: str
+    value: KConfigRHS
 
 
 @dataclass(slots=True)
@@ -150,7 +150,7 @@ def parse_kconfig_entry(raw_entry_str: Iterable[str]) -> KConfigEntry | None:
 
                 token_stream.add(_Quote())
 
-            case ch if ch.isalnum() or ch in "_-./":
+            case ch if ch.isalnum() or ch in "_-./(),":
                 buffer += ch
 
             case ch if ch == _EOL():
@@ -162,7 +162,7 @@ def parse_kconfig_entry(raw_entry_str: Iterable[str]) -> KConfigEntry | None:
                 continue
 
             case _:
-                raise Exception(f"unexpected character: {c}")
+                raise Exception(f"unexpected character: {c} in entry: {raw_entry_str}")
 
     if len(buffer) > 0 and not isinstance(token_stream._tokens[-1], _Hashtag):
         token_stream.add(_Ident(buffer))
@@ -171,29 +171,24 @@ def parse_kconfig_entry(raw_entry_str: Iterable[str]) -> KConfigEntry | None:
     return token_stream.entry()
 
 
+@dataclass
 class KConfig:
-    def __init__(
-        self,
-        kconfig_path: pathlib.Path,
-    ) -> None:
-        self._kconfig_path = kconfig_path
-        self._entries: dict[str:KConfigRHS] = {}
+    entries: dict[str:KConfigRHS]
 
-        with open(self._kconfig_path, "r") as f:
+    @classmethod
+    def from_file(cls, path: pathlib.Path) -> Self:
+        entries: dict[str:KConfigRHS] = dict()
+        with open(path, "r") as f:
             for line in f:
                 if (entry := parse_kconfig_entry(line)) is not None:
-                    self._entries[entry.key] = entry.value
+                    entries[entry.key] = entry.value
 
-    def set_entry(self, entry: KConfigEntry) -> None:
-        self._entries[entry.key] = entry.value
+        return cls(entries=entries)
 
-    def get_entry(self, key: str) -> KConfigRHS | None:
-        return self._entries.get(key, None)
-
-    def update_file(self, out: pathlib.Path | None = None) -> None:
-        with open(out if out is not None else self._kconfig_path, "w") as f:
-            for key, value in self._entries.items():
+    def write_to_file(self, out: pathlib.Path | None = None) -> None:
+        with open(out if out is not None else self._dot_config_path, "w") as f:
+            for key, value in self.entries.items():
                 if isinstance(value, bool):
                     f.write(f"{key}={'y' if value else 'n'}\n")
                 else:
-                    f.write(f"{key}=\"{value}\"\n")
+                    f.write(f'{key}="{value}"\n')

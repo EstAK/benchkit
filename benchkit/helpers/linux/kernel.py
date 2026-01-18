@@ -6,12 +6,15 @@ configuring, compiling and installing.
 """
 
 import pathlib
-import tempfile
 import json
 import enum
+import os
 
-from typing import Dict, Iterable, List
+from typing import Iterable, Self
+from dataclasses import dataclass
 
+from benchkit.helpers.arch import Arch
+from benchkit.helpers.kconfig import KConfig
 from benchkit.helpers.version import SemanticVersion, LinuxVersion
 from benchkit.helpers.linux.build import (
     KernelEntry,
@@ -22,6 +25,7 @@ from benchkit.helpers.linux.build import (
 from benchkit.shell.shell import shell_out
 from benchkit.utils.types import PathType
 from benchkit.platforms import get_current_platform, Platform
+from benchkit.helpers.patch import Patch
 
 
 class Moniker(enum.Enum):
@@ -30,21 +34,44 @@ class Moniker(enum.Enum):
     LONGTERM = "stable"
 
 
+@dataclass
+class MakefileInfo:
+    suffix: str
+    grub_menu_id: str
+    description: str
+
+
 class Kernel:
-    """Represent a Linux kernel."""
+    """
+    Represent a Linux kernel.
+    """
 
     def __init__(
         self,
-        suffix: str,
-        grub_menu_id: str,
-        description: str,
-        patches: list[pathlib.Path],
         version: SemanticVersion,
-    ):
-        self.suffix = suffix
-        self.grub_menu_id = grub_menu_id
-        self.description = description
-        self._patches: list[pathlib.Path] = patches
+        source_dir: pathlib.Path,
+        platform: Platform,
+        patches: Iterable[Patch] = [],
+        makefile_info: MakefileInfo | None = None,
+        config: KConfig | None = None,
+    ) -> None:
+        """
+        Initialize the kernel.
+
+        patches(Iterable[KernelPatch]):
+            Patches to apply to the kernel.
+        version(SemanticVersion):
+            Version of the kernel.
+        config(KConfig | None):
+            Kernel configuration
+        """
+
+        self._makefile_info = makefile_info
+        self._patches: list[Patch] = patches
+        self.config: KConfig | None = config
+        self._version = version
+        self._source_dir = source_dir
+        self._platform = platform
 
     @staticmethod
     def latest_version(moniker: Moniker) -> LinuxVersion:
@@ -58,6 +85,8 @@ class Kernel:
         )
 
         releases = json.loads(platform.comm.read_file(file_))["releases"]
+        # sort by release date to get the latest per moniker as there is no
+        # guarantee on order from kernel.org
         releases.sort(key=lambda r: int(r["released"]["timestamp"]))
         version: LinuxVersion | None = None
 
@@ -70,6 +99,138 @@ class Kernel:
             raise Exception("no available version")
 
         return version
+
+    @staticmethod
+    def download_source(
+        version: LinuxVersion,
+        out_dir: pathlib.Path,
+        clean: bool = False,
+        platform: Platform = get_current_platform(),
+    ) -> Self:
+        """Download the kernel source code."""
+        base: str = f"linux-{version.major}.{version.minor}"
+        tar: str = f"{base}.tar.xz"
+        link: str = f"https://cdn.kernel.org/pub/linux/kernel/v{version.major}.x/{tar}"
+
+        base_path: pathlib.Path = out_dir / base
+        tar_path: pathlib.Path = out_dir / tar
+
+        if not platform.comm.path_exists(out_dir):
+            platform.comm.mkdir(str(out_dir), parents=True)
+
+        # a tarball is assumed clean
+        if not platform.comm.path_exists(tar_path):
+            platform.comm.shell(
+                command=[
+                    "wget",
+                    str(link),
+                    "-O",
+                    str(tar_path),
+                ],
+                shell=True,
+            )
+
+        if not platform.comm.path_exists(base_path) or clean:
+            if platform.comm.path_exists(base_path):
+                platform.comm.remove(str(base_path), recursive=True)
+
+            platform.comm.shell(
+                command=[
+                    "tar",
+                    "-C",
+                    str(out_dir),
+                    "-xvf",
+                    str(tar_path),
+                ]
+            )
+
+        return Kernel(
+            version=version,
+            source_dir=base_path,
+            platform=platform,
+        )
+
+    def add_patch(self, patch: Patch) -> None:
+        """
+        Add a patch to the kernel.
+        """
+
+        self._patches.append(patch)
+
+    def add_patches(self, patches: Iterable[Patch]) -> None:
+        """
+        Add multiple patches to the kernel.
+        """
+
+        for patch in patches:
+            self.add_patch(patch=patch)
+
+    def compile(self) -> None:
+        """
+        Compile the kernel.
+        """
+
+        nb_cpus: int = int(self._platform.comm.shell("nproc"))
+        self._platform.comm.shell(
+            command=[
+                "make",
+                f"-j{nb_cpus}",
+            ],
+            current_dir=self._source_dir,
+        )
+
+    def apply_patches(self) -> None:
+        """
+        Apply the patches to the kernel.
+        """
+
+        for patch in self._patches:
+            patch.apply()
+
+    def make_defconfig(self, arch: Arch) -> None:
+        """
+        Get the default kernel configuration.
+        """
+
+        self._platform.comm.shell(
+            command=["make", f"ARCH={arch.value}", "defconfig"],
+            current_dir=self._source_dir,
+        )
+
+        self.config = KConfig.from_file(self._source_dir / ".config")
+
+        # logging.info("Cleaning the .config")
+        # if subprocess.run(["make", "distclean"], cwd=base_path).returncode != 0:
+        #     raise Exception("failed to make the default config")
+
+        # logging.info("Making the default .config")
+        # if subprocess.run(["make", "defconfig"], cwd=base_path).returncode != 0:
+        #     raise Exception("failed to make the default config")
+
+        # logging.info("Modifying the defconfig")
+        # dot_config: DotConfig = DotConfig(path=base_path / ".config")
+
+        # for k, v in CONFIGS.items():
+        #     dot_config.set_option(option=k, value=v)
+
+        # for conf in DISABLED_CONFIG:
+        #     dot_config.unset_option(option=conf)
+        # logging.info("Finished make defconfig")
+
+        # logging.info("Starting Compilation")
+        # make_cmd: List[str] = [
+        #     "make",
+        #     f"-j{multiprocessing.cpu_count()}",
+        #     f"ARCH={arch.arch}",
+        # ]
+        # if subprocess.run(make_cmd, cwd=base_path).returncode != 0:
+        #     raise Exception("failed to compile the kernel")
+        # logging.info("Finished compiling")
+
+        # shutil.copy2(
+        #     src=str(base_path / "arch" / arch.arch / "boot" / "bzImage"),
+        #     dst=str(out_dir / "bzImage"),
+        # )
 
 
 # class GitKernel(Kernel):

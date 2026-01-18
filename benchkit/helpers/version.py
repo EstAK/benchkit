@@ -11,7 +11,7 @@ import functools
 @functools.total_ordering
 class SemanticVersion:
     """
-    An abstraction to version semver compliants entities
+    An abstraction to version semver compliant software.
     """
     major: int = 0
     minor: int = 0
@@ -63,7 +63,7 @@ class SemanticVersion:
 
 class LinuxVersion(SemanticVersion):
     """
-    An abstraction for a versioning the Linux kernel as it does not use standard semver
+    An abstraction for a versioning the Linux kernel as it does not use the standard semver.
 
     Example:
 
