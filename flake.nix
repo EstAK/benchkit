@@ -2,7 +2,10 @@
   description = "Minimal flake for benchkit";
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11";
-    pythainer.url = "github:apaolillo/pythainer";
+    pythainer = {
+      url = "github:apaolillo/pythainer";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     dream2nix.url = "github:nix-community/dream2nix";
   };
 
