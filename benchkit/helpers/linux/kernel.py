@@ -150,7 +150,11 @@ class Kernel:
             platform=platform,
         )
 
-    def add_patch(self, patch_file: pathlib.Path) -> None:
+    def add_patch(
+        self,
+        patch_file: pathlib.Path,
+        pnum: int | None = None,
+    ) -> None:
         """
         Add a patch to the kernel.
         """
@@ -160,16 +164,21 @@ class Kernel:
                 patch_file=patch_file,
                 cwd=self._source_dir,
                 platform=self._platform,
+                pnum=pnum if pnum is not None else self._detect_patch_level(patch_file),
             )
         )
 
-    def add_patches(self, patches: Iterable[pathlib.Path]) -> None:
+    def add_patches(
+        self,
+        patches: Iterable[pathlib.Path],
+        pnum: int | None = None,
+    ) -> None:
         """
         Add multiple patches to the kernel.
         """
 
         for pf in patches:
-            self.add_patch(patch_file=pf)
+            self.add_patch(patch_file=pf, pnum=pnum)
 
     def distclean(self) -> None:
         """

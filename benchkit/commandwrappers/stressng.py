@@ -7,20 +7,22 @@ import signal
 from benchkit.platforms import Platform
 from benchkit.shell.shellasync import shell_async, AsyncProcess
 
+from typing import Any
+
 
 class StressNgContext:
     def __init__(
         self,
-        args: dict[str, str],
+        args: dict[str, Any],
         cmds: list[str],
         platform: Platform,
     ) -> None:
         self._cmd: list[str] = ["stress-ng"] + cmds
-        self._args: dict[str, str] = args
+        self._args: dict[str, Any] = args
         self._platform: Platform = platform
         self._async_process: AsyncProcess | None = None
 
-    def add_args(self, args: dict[str, str]) -> None:
+    def add_args(self, args: dict[str, Any]) -> None:
         self._args.update(args)
 
     def add_cmd(self, cmd: str) -> None:
@@ -29,7 +31,7 @@ class StressNgContext:
     def start(self) -> None:
         cmd: list[str] = self._cmd
         for k, v in self._args.items():
-            cmd.extend([k, v])
+            cmd.extend([k, str(v)])
 
         self._async_process = shell_async(
             command=cmd,
