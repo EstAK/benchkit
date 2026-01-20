@@ -39,6 +39,7 @@ from benchkit.utils.types import (
     SplitCommand,
 )
 from benchkit.utils.variables import list_groupby
+from benchkit.helpers.arch import Arch
 
 RecordKey = str
 RecordValue = Any
@@ -97,6 +98,17 @@ class CommandAttachment(Protocol):
     ) -> None: ...
 
 
+class ArchEncoder(json.JSONEncoder):
+    """
+    JSONEncoder extension to support Architecture serialization.
+    """
+
+    def default(self, obj):
+        if isinstance(obj, Arch):
+            return obj.value
+        return super().default(obj)
+
+
 class PathEncoder(json.JSONEncoder):
     """
     JSONEncoder extension to support pathlib.Path serialization.
@@ -127,9 +139,14 @@ class MultipleJsonEncoders:
                 return encoder(*self.args, **self.kwargs).default(obj)
             except TypeError:
                 pass
-        raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
+        raise TypeError(
+            f"Object of type {obj.__class__.__name__} is not JSON serializable"
+        )
 
     def __call__(self, *args, **kwargs):
+        """
+        This allows to us to spoof this class as a JSONEncoder he to implement our own __init__
+        """
         self.args = args
         self.kwargs = kwargs
         enc = json.JSONEncoder(*args, **kwargs)
@@ -151,7 +168,7 @@ class Benchmark:
         shared_libs: Iterable[SharedLib],
         pre_run_hooks: Iterable[PreRunHook],
         post_run_hooks: Iterable[PostRunHook],
-        encoders: list[Type[json.JSONEncoder]] = [PathEncoder],
+        encoders: list[Type[json.JSONEncoder]] = [PathEncoder, ArchEncoder],
     ) -> None:
         # TODO tilt is still hardcoded for now, remove tilt from the base benchmark class
         tilts = [lib for lib in shared_libs if isinstance(lib, TiltLib)]
@@ -313,7 +330,9 @@ class Benchmark:
         Returns:
             List[PackageDependency]: required dependencies of the current benchmark.
         """
-        sharedlibs_deps = [shared_lib.dependencies() for shared_lib in self._shared_libs]
+        sharedlibs_deps = [
+            shared_lib.dependencies() for shared_lib in self._shared_libs
+        ]
         cmdwraps_deps = [
             command_wrapper.dependencies() for command_wrapper in self._command_wrappers
         ]
@@ -386,7 +405,9 @@ class Benchmark:
         self._experiment_name = experiment_name
         self._benchmark_name = benchmark_name
         self._csv_output_path = pathlib.Path(csv_output_path)
-        self._base_data_dir = pathlib.Path(base_data_dir) if base_data_dir is not None else None
+        self._base_data_dir = (
+            pathlib.Path(base_data_dir) if base_data_dir is not None else None
+        )
         self._benchmark_duration_seconds = benchmark_duration_seconds
         self._nb_runs = nb_runs
         self._constants = constants
@@ -503,7 +524,10 @@ class Benchmark:
                 records_lines = output_executions[1:]
 
                 keys = header.split(";")
-                records = [dict(zip(keys, record_line.split(";"))) for record_line in records_lines]
+                records = [
+                    dict(zip(keys, record_line.split(";")))
+                    for record_line in records_lines
+                ]
             else:
                 print_comments = True
                 records = []
@@ -647,7 +671,9 @@ class Benchmark:
                 total_duration_seconds=actual_total_seconds,
             )
 
-        print(f"[INFO] Benchmark done. " f'Results are stored in: "{self._csv_output_path}"')
+        print(
+            f'[INFO] Benchmark done. Results are stored in: "{self._csv_output_path}"'
+        )
 
     def build_tilt(
         self,
@@ -954,13 +980,21 @@ class Benchmark:
                 split parameters (build/run/tilt/other).
         """
         build_variables = {
-            k: record_parameters[k] for k in self.get_build_var_names() if k in record_parameters
+            k: record_parameters[k]
+            for k in self.get_build_var_names()
+            if k in record_parameters
         }
         run_variables = {
-            k: record_parameters[k] for k in self.get_run_var_names() if k in record_parameters
+            k: record_parameters[k]
+            for k in self.get_run_var_names()
+            if k in record_parameters
         }
         tilt_variables = (
-            {k: record_parameters[k] for k in self.get_tilt_var_names() if k in record_parameters}
+            {
+                k: record_parameters[k]
+                for k in self.get_tilt_var_names()
+                if k in record_parameters
+            }
             if self._use_tilt
             else {}
         )
@@ -1062,20 +1096,27 @@ class Benchmark:
 
             def str_param(value: List[str] | str) -> str:
                 if isinstance(value, list):
-                    return f'[{", ".join(map(str, value))}]'
+                    return f"[{', '.join(map(str, value))}]"
                 return str(value)
 
-            execution_parameters = {k: str_param(v) for k, v in experiment_results.items()}
+            execution_parameters = {
+                k: str_param(v) for k, v in experiment_results.items()
+            }
 
             # If this execution has already been done and continuing option is activated,
             # then skip
-            if continuing and self._is_result_cached(execution_parameters, executions_dict):
+            if continuing and self._is_result_cached(
+                execution_parameters, executions_dict
+            ):
                 print("[CONTINUING] This execution has already been done. Skipping it")
                 self._nb_runs_done += 1
                 if not self._first_line_is_printed:
                     self._first_line_is_printed = True
                     with open(self._csv_output_path, "a") as csv_output_file:
-                        teeprint(content="# Continuing campaign execution", file=csv_output_file)
+                        teeprint(
+                            content="# Continuing campaign execution",
+                            file=csv_output_file,
+                        )
                 continue
 
             # Replace record_data_dir with a temporary data directory for the
@@ -1130,7 +1171,9 @@ class Benchmark:
             # If the host was remote, all the wrappers generated files on the remote machine and
             # these need to be copied back to the host machine.
             if not self.platform.comm.is_local:
-                self.platform.comm.copy_to_host(f"{temp_record_data_dir}/", f"{record_data_dir}/")
+                self.platform.comm.copy_to_host(
+                    f"{temp_record_data_dir}/", f"{record_data_dir}/"
+                )
                 # Clean up nicely after ourselves
                 self.platform.comm.remove(self._temp_record_prefix(), recursive=True)
 
@@ -1149,10 +1192,14 @@ class Benchmark:
                 # multi-line output record
                 experiment_results_lines = []
                 for line in single_run_results:
-                    experiment_results_lines.append(dict_union(experiment_results_header, line))
+                    experiment_results_lines.append(
+                        dict_union(experiment_results_header, line)
+                    )
             else:
                 # single-line output record
-                record_params_results = dict_union(experiment_results_header, single_run_results)
+                record_params_results = dict_union(
+                    experiment_results_header, single_run_results
+                )
                 experiment_results_lines = [record_params_results]
 
             for post_run_hook in self._post_run_hooks:
@@ -1191,11 +1238,17 @@ class Benchmark:
                             current_max_thread = max(current_thread_columns)
                             thread_list = [
                                 f"thread_{t}"
-                                for t in range(current_max_thread + 1, self._max_nb_threads())
+                                for t in range(
+                                    current_max_thread + 1, self._max_nb_threads()
+                                )
                             ]
                         header_unsorted = header_list + thread_list
-                        header_left = [e for e in header_unsorted if not e.startswith("thread_")]
-                        header_right = [e for e in header_unsorted if e.startswith("thread_")]
+                        header_left = [
+                            e for e in header_unsorted if not e.startswith("thread_")
+                        ]
+                        header_right = [
+                            e for e in header_unsorted if e.startswith("thread_")
+                        ]
                         header = sep.join(header_left + header_right)
 
                         teeprint(content=header, file=csv_output_file)
@@ -1203,13 +1256,19 @@ class Benchmark:
                         self._first_line_list = header_list
 
                     line_keys_left = [
-                        k for k in experiment_results_line.keys() if not k.startswith("thread_")
+                        k
+                        for k in experiment_results_line.keys()
+                        if not k.startswith("thread_")
                     ]
                     line_keys_right = [
-                        k for k in experiment_results_line.keys() if k.startswith("thread_")
+                        k
+                        for k in experiment_results_line.keys()
+                        if k.startswith("thread_")
                     ]
                     line_keys = line_keys_left + line_keys_right
-                    current_line = sep.join(str(experiment_results_line[key]) for key in line_keys)
+                    current_line = sep.join(
+                        str(experiment_results_line[key]) for key in line_keys
+                    )
                     teeprint(content=current_line, file=csv_output_file)
 
     def _record_data_dir(
@@ -1225,7 +1284,9 @@ class Benchmark:
         max_nb_digits = len(str(total_nb_runs))
         nb_run_str = f"{run_id:0{max_nb_digits}}"
 
-        dirnames = [f"{k}-{v}" for k, v in record_parameters.items()] + [f"run-{nb_run_str}"]
+        dirnames = [f"{k}-{v}" for k, v in record_parameters.items()] + [
+            f"run-{nb_run_str}"
+        ]
         result = bdd.joinpath(*dirnames).resolve()
 
         if not result.is_dir():
@@ -1306,8 +1367,12 @@ class Benchmark:
             stdout_path = record_data_dir / "cmd_stdout.txt"
             stderr_path = record_data_dir / "cmd_stderr.txt"
         else:
-            stdout_path = f"{get_benchkit_temp_folder_str()}/benchkit_lastcmd_stdout.txt"
-            stderr_path = f"{get_benchkit_temp_folder_str()}/benchkit_lastcmd_stderr.txt"
+            stdout_path = (
+                f"{get_benchkit_temp_folder_str()}/benchkit_lastcmd_stdout.txt"
+            )
+            stderr_path = (
+                f"{get_benchkit_temp_folder_str()}/benchkit_lastcmd_stderr.txt"
+            )
 
         current_process = shell_async(
             command=wrapped_run_command,
