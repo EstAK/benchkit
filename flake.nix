@@ -39,6 +39,7 @@
 
 
       devShells = eachSystem (system:
+
         let
           pkgs = import nixpkgs {inherit system;};
           benchkit = self.packages.${system}.default;
@@ -50,10 +51,28 @@
             benchkit.config.deps.tmux
           ];
 
+          linuxKernelPackages = [
+            pkgs.flex
+            pkgs.bison
+            pkgs.bc
+            pkgs.elfutils
+            pkgs.binutils
+            pkgs.lld
+            pkgs.openssl
+
+            # kernel + busybox
+            pkgs.stdenv
+            pkgs.ncurses
+            pkgs.pkg-config
+          ];
+
           pythonToolingPackages = [
             python.pkgs.python-lsp-ruff
             python.pkgs.numpy
             python.pkgs.pip
+
+            python.pkgs.gitpython # required for the kernel
+            python.pkgs.wget # required for the kernel
           ];
 
           formattingPackages = [
@@ -69,22 +88,23 @@
             packages = benchkitCorePackages
                        ++ pythonToolingPackages
                        ++ formattingPackages
+                       ++ linuxKernelPackages
                        ++ [];
           };
 
           # example of a devshell where non free software is required
-          # unfree = pkgs.mkShell {
-          #   inputsFrom = [self.devShells.${system}.core];
-          #   packages = let
-          #     pkgs = import nixpkgs {
-          #       inherit system;
-          #       config.allowUnfree = true;
-          #     };
-          #   in benchkitCorePackages
-          #      ++ pythonToolingPackages
-          #      ++ formattingPackages
-          #      ++ [];
-          # };
+          #unfree = pkgs.mkShell {
+          #  inputsFrom = [self.devShells.${system}.core];
+          #  packages = let
+          #    pkgs = import nixpkgs {
+          #      inherit system;
+          #      config.allowUnfree = true;
+          #    };
+          #  in benchkitCorePackages
+          #     ++ pythonToolingPackages
+          #     ++ formattingPackages
+          #     ++ [];
+          #};
 
           default = self.devShells.${system}.core;
         });
