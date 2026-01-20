@@ -50,10 +50,10 @@ class Kernel:
 
     version: LinuxVersion
     platform: Platform
-    patches: list[Patch] = field(default_factory=list)
     makefile_info: MakefileInfo | None = None
     config: KConfig | None = None
     # private
+    __patches: list[Patch] = field(default_factory=list)
     __source_dir: pathlib.Path | None = None
 
     @staticmethod
@@ -104,7 +104,7 @@ class Kernel:
         self,
         build_dir: pathlib.Path,
         clean: bool = False,
-    ) -> None:
+    ) -> Self:
         """
         Download the kernel source code.
         """
@@ -148,15 +148,18 @@ class Kernel:
                 ]
             )
 
+        return self
+
     def add_patch(
         self,
         patch_file: pathlib.Path,
         pnum: int | None = None,
-    ) -> None:
+    ) -> Self:
         """
         Add a patch to the kernel.
         """
 
+        # FIXME this does not really work, auto detect gives a None
         resolved_pnum: int = pnum or Patch.detect_patch_level(
             prefix=self.__source_dir.stem,
             patch_file=patch_file,
@@ -175,17 +178,21 @@ class Kernel:
         else:
             self._patches.append(patch)
 
+        return self
+
     def add_patches(
         self,
         patches: Iterable[pathlib.Path],
         pnum: int | None = None,
-    ) -> None:
+    ) -> Self:
         """
         Add multiple patches to the kernel.
         """
 
         for pf in patches:
             self.add_patch(patch_file=pf, pnum=pnum)
+
+        return self
 
     def distclean(self) -> None:
         """
@@ -211,13 +218,15 @@ class Kernel:
             current_dir=self.__source_dir,
         )
 
-    def apply_patches(self) -> None:
+    def apply_patches(self) -> Self:
         """
         Apply the patches to the kernel.
         """
 
-        for patch in self.patches:
+        for patch in self.__patches:
             patch.apply()
+
+        return self
 
     def make_defconfig(self, arch: Arch | None = None) -> None:
         """
@@ -230,7 +239,9 @@ class Kernel:
             current_dir=self.__source_dir,
         )
 
-        self.config = KConfig.from_file(self.__source_dir / ".config")
+        self.config = KConfig.from_file(
+            path=self.__source_dir / ".config", platform=self.platform
+        )
 
     def load_existing_config(self) -> None:
         """
@@ -240,10 +251,16 @@ class Kernel:
         if not config_file.exists():
             raise Exception(f"kernel config file {config_file} does not exist")
 
-        self.config = KConfig.from_file(config_file)
+        self.config = KConfig.from_file(out=config_file, platform=self.platform)
 
     def update_config(self, updates: dict[str, KConfigRHS]) -> None:
         self.config.entries.update(updates)
+
+    def save_config(self) -> None:
+        self.config.write_to_file(
+            out=self.__source_dir / ".config",
+            platform=self.platform,
+        )
 
         # logging.info("Cleaning the .config")
         # if subprocess.run(["make", "distclean"], cwd=base_path).returncode != 0:
