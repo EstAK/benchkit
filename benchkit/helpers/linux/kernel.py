@@ -107,7 +107,10 @@ class Kernel:
         clean: bool = False,
         platform: Platform = get_current_platform(),
     ) -> Self:
-        """Download the kernel source code."""
+        """
+        Download the kernel source code.
+        """
+
         base: str = f"linux-{version.major}.{version.minor}"
         tar: str = f"{base}.tar.xz"
         link: str = f"https://cdn.kernel.org/pub/linux/kernel/v{version.major}.x/{tar}"
@@ -159,14 +162,23 @@ class Kernel:
         Add a patch to the kernel.
         """
 
-        self._patches.append(
-            Patch(
-                patch_file=patch_file,
-                cwd=self._source_dir,
-                platform=self._platform,
-                pnum=pnum if pnum is not None else self._detect_patch_level(patch_file),
-            )
+        pnum: int = pnum or Patch.detect_patch_level(
+            prefix=f"linux-{self._version.major}.{self._version.minor}",
+            patch_file=patch_file,
+            platform=self._platform,
         )
+
+        patch = Patch(
+            patch_file=patch_file,
+            cwd=self._source_dir,  # assuming patches are applied from the parent dir
+            platform=self._platform,
+            pnum=pnum,
+        )
+
+        if patch.is_applied():
+            print(f"Patch {patch_file} is already applied, skipping.")
+        else:
+            self._patches.append(patch)
 
     def add_patches(
         self,

@@ -16,31 +16,23 @@ class Patch:
 
     @staticmethod
     def detect_patch_level(
-        version_prefix: pathlib.Path,
+        prefix: str,
         patch_file: pathlib.Path,
+        platform: Platform,
     ) -> int:
         """
-        Determine the patch level by examining the first '---' or '+++'
-        line in the patch file.
+        Detect the patch level of a patch file.
         """
-        version_prefix: str = str(version_prefix)
-        patch_level = 0
-
-        with patch_file.open("r") as pf:
-            for line in pf:
-                if line.startswith(("---", "+++")):
-                    # strip leading '--- ' or '+++ '
-                    path = line[4:].strip()
-                    # count the number of leading directories until the version prefix
-                    while not path.startswith(version_prefix):
-                        if "/" not in path:
-                            # fallback if the expected version prefix is not found
-                            break
-                        _, path = path.split("/", 1)
-                        patch_level += 1
-                    break
-
-        return patch_level
+        pf: list[str] = platform.comm.read_file(patch_file).splitlines()
+        try:
+            minus: str = next((line for line in pf if line.startswith("---")), "")
+            pnum: int = 0
+            for tok in minus.split("/"):
+                if tok.startswith(prefix):
+                    return pnum
+                pnum += 1
+        except StopIteration:
+            return 0
 
     def apply(self, _reversed: bool = False) -> None:
         self.platform.comm.shell(
@@ -55,3 +47,18 @@ class Patch:
 
     def undo(self) -> None:
         self.apply(_reversed=True)
+
+    def is_applied(self) -> bool:
+        """
+        Check if the patch is already applied.
+        """
+        msg: str = "Reversed (or previously applied) patch detected!"
+        out: str = self.platform.comm.shell(
+            command=f"patch --dry-run -t -s -p{self.pnum} < {self.patch_file} 2>&1",
+            current_dir=self.cwd,
+            print_output=False,
+            print_input=False,
+            shell=True,
+        )
+
+        return msg in out
