@@ -6,6 +6,8 @@ import pathlib
 from typing import Self, Iterable
 from dataclasses import dataclass, field
 
+from benchkit.platforms import Platform
+
 
 class __Token:
     def __eq__(self, other) -> bool:
@@ -98,6 +100,7 @@ class _KConfigEntryTokenStream:
         """
         if self._pos > 0 and type(token) not in _transitions[type(self._prev)]:
             raise Exception(f"Invalid token sequence : {self._tokens} + {type(token)}")
+
         self._pos += 1
         self._tokens.append(token)  # add the token if no exception was raised
 
@@ -105,9 +108,12 @@ class _KConfigEntryTokenStream:
         if isinstance(self._tokens[0], _Hashtag):
             return None
 
+        if isinstance(self._tokens[-1], _EOL):
+            self._tokens.pop()  # remove EOL for easier processing
+
         # when the entry is of the form KEY=VALUE where VALUE is a single token
-        if len(self._tokens) == 4:
-            lhs, _eq, rhs, _eol = self._tokens
+        if len(self._tokens) == 3:
+            lhs, _eq, rhs = self._tokens
             return KConfigEntry(
                 key=lhs.content,
                 value=rhs.try_downcast(),
@@ -118,7 +124,7 @@ class _KConfigEntryTokenStream:
             key=self._tokens[0].content,
             value="".join(
                 [
-                    str(tok.try_downcast()) if isinstance(tok, _Ident) else str(tok)
+                    str(tok)
                     for tok in self._tokens[1:]
                     if not isinstance(tok, (_Equal, _EOL))
                 ]
@@ -176,19 +182,35 @@ class KConfig:
     entries: dict[str:KConfigRHS]
 
     @classmethod
-    def from_file(cls, path: pathlib.Path) -> Self:
+    def from_file(
+        cls,
+        path: pathlib.Path,
+        platform: Platform,
+    ) -> Self:
+        if not platform.comm.isfile(path):
+            raise FileNotFoundError(f"KConfig file not found at path: {path}")
+
         entries: dict[str:KConfigRHS] = dict()
-        with open(path, "r") as f:
-            for line in f:
-                if (entry := parse_kconfig_entry(line)) is not None:
-                    entries[entry.key] = entry.value
+
+        # read the file content which is slow for big files
+        # TODO buffered read ?  sockets ? daemon ?
+        f: str = platform.comm.read_file(path)
+        for line in f.splitlines():
+            if (entry := parse_kconfig_entry(line)) is not None:
+                entries[entry.key] = entry.value
 
         return cls(entries=entries)
 
-    def write_to_file(self, out: pathlib.Path | None = None) -> None:
-        with open(out if out is not None else self._dot_config_path, "w") as f:
-            for key, value in self.entries.items():
-                if isinstance(value, bool):
-                    f.write(f"{key}={'y' if value else 'n'}\n")
-                else:
-                    f.write(f'{key}="{value}"\n')
+    def write_to_file(
+        self,
+        out: pathlib.Path,
+        platform: Platform,
+    ) -> None:
+        buffer: str = ""
+        for key, value in self.entries.items():
+            if isinstance(value, bool):
+                buffer += f"{key}={'y' if value else 'n'}\n"
+            else:
+                buffer += f'{key}="{value}"\n'
+
+        platform.comm.write_content_to_file(content=buffer, output_filename=out)

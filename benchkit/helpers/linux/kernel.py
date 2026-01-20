@@ -53,7 +53,7 @@ class Kernel:
     patches: list[Patch] = field(default_factory=list)
     makefile_info: MakefileInfo | None = None
     config: KConfig | None = None
-    # private 
+    # private
     __source_dir: pathlib.Path | None = None
 
     @staticmethod
@@ -157,8 +157,8 @@ class Kernel:
         Add a patch to the kernel.
         """
 
-        pnum: int = pnum or Patch.detect_patch_level(
-            prefix=f"linux-{self.version.major}.{self.version.minor}",
+        resolved_pnum: int = pnum or Patch.detect_patch_level(
+            prefix=self.__source_dir.stem,
             patch_file=patch_file,
             platform=self.platform,
         )
@@ -167,7 +167,7 @@ class Kernel:
             patch_file=patch_file,
             cwd=self.__source_dir,  # assuming patches are applied from the parent dir
             platform=self.platform,
-            pnum=pnum,
+            pnum=resolved_pnum,
         )
 
         if patch.is_applied():
@@ -243,7 +243,7 @@ class Kernel:
         self.config = KConfig.from_file(config_file)
 
     def update_config(self, updates: dict[str, KConfigRHS]) -> None:
-        self.config.update_entries(updates)
+        self.config.entries.update(updates)
 
         # logging.info("Cleaning the .config")
         # if subprocess.run(["make", "distclean"], cwd=base_path).returncode != 0:
