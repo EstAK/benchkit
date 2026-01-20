@@ -1,5 +1,7 @@
 # Copyright (C) 2023 Huawei Technologies Co., Ltd. All rights reserved.
 # SPDX-License-Identifier: MIT
+# Copyright (C) 2026 Vrije Universiteit Brussel. All rights reserved.
+# SPDX-License-Identifier: MIT
 """
 Instantiate kernels, in particular from git, and manage the whole build process, including patching,
 configuring, compiling and installing.
@@ -8,13 +10,12 @@ configuring, compiling and installing.
 import pathlib
 import json
 import enum
-import os
 
 from typing import Iterable, Self
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from benchkit.helpers.arch import Arch
-from benchkit.helpers.kconfig import KConfig
+from benchkit.helpers.kconfig import KConfig, KConfigRHS
 from benchkit.helpers.version import SemanticVersion, LinuxVersion
 from benchkit.helpers.linux.build import (
     KernelEntry,
@@ -31,7 +32,7 @@ from benchkit.helpers.patch import Patch
 class Moniker(enum.Enum):
     MAINLINE = "mainline"
     STABLE = "stable"
-    LONGTERM = "stable"
+    LTS = "longterm"
 
 
 @dataclass
@@ -41,37 +42,19 @@ class MakefileInfo:
     description: str
 
 
+@dataclass
 class Kernel:
     """
     Represent a Linux kernel.
     """
 
-    def __init__(
-        self,
-        version: SemanticVersion,
-        source_dir: pathlib.Path,
-        platform: Platform,
-        patches: Iterable[Patch] = [],
-        makefile_info: MakefileInfo | None = None,
-        config: KConfig | None = None,
-    ) -> None:
-        """
-        Initialize the kernel.
-
-        patches(Iterable[KernelPatch]):
-            Patches to apply to the kernel.
-        version(SemanticVersion):
-            Version of the kernel.
-        config(KConfig | None):
-            Kernel configuration
-        """
-
-        self._makefile_info = makefile_info
-        self._patches: list[Patch] = patches
-        self.config: KConfig | None = config
-        self._version = version
-        self._source_dir = source_dir
-        self._platform = platform
+    version: LinuxVersion
+    platform: Platform
+    patches: list[Patch] = field(default_factory=list)
+    makefile_info: MakefileInfo | None = None
+    config: KConfig | None = None
+    # private 
+    __source_dir: pathlib.Path | None = None
 
     @staticmethod
     def latest_version(moniker: Moniker) -> LinuxVersion:
@@ -101,29 +84,46 @@ class Kernel:
         return version
 
     @staticmethod
-    def download_source(
-        version: LinuxVersion,
-        out_dir: pathlib.Path,
-        clean: bool = False,
-        platform: Platform = get_current_platform(),
+    def latest(
+        build_dir: pathlib.Path,
+        platform: Platform,
+        moniker: Moniker,
+        download: bool = False,
     ) -> Self:
+        kernel: Self = Kernel(
+            version=Kernel.latest_version(moniker=moniker),
+            platform=platform,
+        )
+
+        if download:
+            kernel.download(build_dir=build_dir)
+
+        return kernel
+
+    def download(
+        self,
+        build_dir: pathlib.Path,
+        clean: bool = False,
+    ) -> None:
         """
         Download the kernel source code.
         """
 
-        base: str = f"linux-{version.major}.{version.minor}"
+        base: str = f"linux-{self.version.major}.{self.version.minor}"
         tar: str = f"{base}.tar.xz"
-        link: str = f"https://cdn.kernel.org/pub/linux/kernel/v{version.major}.x/{tar}"
+        link: str = (
+            f"https://cdn.kernel.org/pub/linux/kernel/v{self.version.major}.x/{tar}"
+        )
 
-        base_path: pathlib.Path = out_dir / base
-        tar_path: pathlib.Path = out_dir / tar
+        self.__source_dir = build_dir / base
+        tar_path: pathlib.Path = build_dir / tar
 
-        if not platform.comm.path_exists(out_dir):
-            platform.comm.mkdir(str(out_dir), parents=True)
+        if not self.platform.comm.path_exists(build_dir):
+            self.platform.comm.mkdir(str(build_dir), parents=True)
 
         # a tarball is assumed clean
-        if not platform.comm.path_exists(tar_path):
-            platform.comm.shell(
+        if not self.platform.comm.path_exists(tar_path):
+            self.platform.comm.shell(
                 command=[
                     "wget",
                     str(link),
@@ -133,25 +133,20 @@ class Kernel:
                 shell=True,
             )
 
-        if not platform.comm.path_exists(base_path) or clean:
-            if platform.comm.path_exists(base_path):
-                platform.comm.remove(str(base_path), recursive=True)
+        if not self.platform.comm.path_exists(self.__source_dir) or clean:
+            # FIXME there is no explicit error handling with remove therefore, this construct is required
+            if self.platform.comm.path_exists(self.__source_dir):
+                self.platform.comm.remove(str(self.__source_dir), recursive=True)
 
-            platform.comm.shell(
+            self.platform.comm.shell(
                 command=[
                     "tar",
                     "-C",
-                    str(out_dir),
+                    str(build_dir),
                     "-xvf",
                     str(tar_path),
                 ]
             )
-
-        return Kernel(
-            version=version,
-            source_dir=base_path,
-            platform=platform,
-        )
 
     def add_patch(
         self,
@@ -163,15 +158,15 @@ class Kernel:
         """
 
         pnum: int = pnum or Patch.detect_patch_level(
-            prefix=f"linux-{self._version.major}.{self._version.minor}",
+            prefix=f"linux-{self.version.major}.{self.version.minor}",
             patch_file=patch_file,
-            platform=self._platform,
+            platform=self.platform,
         )
 
         patch = Patch(
             patch_file=patch_file,
-            cwd=self._source_dir,  # assuming patches are applied from the parent dir
-            platform=self._platform,
+            cwd=self.__source_dir,  # assuming patches are applied from the parent dir
+            platform=self.platform,
             pnum=pnum,
         )
 
@@ -197,9 +192,9 @@ class Kernel:
         Clean the kernel source tree.
         """
 
-        self._platform.comm.shell(
+        self.platform.comm.shell(
             command=["make", "distclean"],
-            current_dir=self._source_dir,
+            current_dir=self.__source_dir,
         )
 
     def compile(self) -> None:
@@ -207,13 +202,13 @@ class Kernel:
         Compile the kernel.
         """
 
-        nb_cpus: int = int(self._platform.comm.shell("nproc"))
-        self._platform.comm.shell(
+        nb_cpus: int = int(self.platform.comm.shell("nproc"))
+        self.platform.comm.shell(
             command=[
                 "make",
                 f"-j{nb_cpus}",
             ],
-            current_dir=self._source_dir,
+            current_dir=self.__source_dir,
         )
 
     def apply_patches(self) -> None:
@@ -221,30 +216,34 @@ class Kernel:
         Apply the patches to the kernel.
         """
 
-        for patch in self._patches:
+        for patch in self.patches:
             patch.apply()
 
-    def make_defconfig(self, arch: Arch) -> None:
+    def make_defconfig(self, arch: Arch | None = None) -> None:
         """
         Get the default kernel configuration.
         """
 
-        self._platform.comm.shell(
+        arch: Arch = arch or Arch._platform.architecture()
+        self.platform.comm.shell(
             command=["make", f"ARCH={arch.value}", "defconfig"],
-            current_dir=self._source_dir,
+            current_dir=self.__source_dir,
         )
 
-        self.config = KConfig.from_file(self._source_dir / ".config")
+        self.config = KConfig.from_file(self.__source_dir / ".config")
 
     def load_existing_config(self) -> None:
         """
         Load an existing kernel configuration from the source directory.
         """
-        config_file: pathlib.Path = self._source_dir / ".config"
+        config_file: pathlib.Path = self.__source_dir / ".config"
         if not config_file.exists():
             raise Exception(f"kernel config file {config_file} does not exist")
 
         self.config = KConfig.from_file(config_file)
+
+    def update_config(self, updates: dict[str, KConfigRHS]) -> None:
+        self.config.update_entries(updates)
 
         # logging.info("Cleaning the .config")
         # if subprocess.run(["make", "distclean"], cwd=base_path).returncode != 0:

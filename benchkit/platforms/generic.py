@@ -14,6 +14,7 @@ from benchkit.platforms.utils import (
     get_nb_cpus_total,
 )
 from benchkit.utils import lscpu
+from benchkit.helpers.arch import Arch
 
 
 class Platform:
@@ -95,7 +96,7 @@ class Platform:
         return self._nb_hyperthreads_per_core
 
     @property
-    def architecture(self) -> str:
+    def architecture(self) -> Arch:
         """
         Get the architecture of the platform.
 
@@ -108,7 +109,7 @@ class Platform:
                 print_input=False,
                 print_output=False,
             ).strip()
-        return self._architecture
+        return Arch.from_str(self._architecture)
 
     def nb_cpus(self) -> int:
         """

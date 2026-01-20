@@ -1,37 +1,36 @@
-#!/usr/bin/env python3
+# Copyright (C) 2026 Vrije Universiteit Brussel. All rights reserved.
+# SPDX-License-Identifier: MIT
 
-import enum
+from typing import Self
+from enum import Enum
 
 
 # NOTE add new architectures here as needed
-class Arch(enum.Enum):
+class Arch(Enum):
     ARM = "arm"
     ARM64 = "arm64"
     MIPS = "mips"
     RISCV = "riscv"
+    X86_64 = "x86_64"
     X86 = "x86"
     ARC = "arc"
     MICROBLAZE = "microblaze"
     XTENSA = "xtensa"
 
+    @classmethod
+    def from_str(cls, value: str) -> Self:
+        v: str = value.lower().strip()
 
-def arch_from_str(arch_str: str) -> Arch:
-    match arch_str.lower():
-        case "arm":
-            return Arch.ARM
-        case "arm64" | "aarch64":
-            return Arch.ARM64
-        case "mips":
-            return Arch.MIPS
-        case "riscv" | "riscv64":
-            return Arch.RISCV
-        case "x86" | "x86_64" | "amd64":
-            return Arch.X86
-        case "arc":
-            return Arch.ARC
-        case "microblaze":
-            return Arch.MICROBLAZE
-        case "xtensa":
-            return Arch.XTENSA
-        case _:
-            raise ValueError(f"Unknown architecture string: {arch_str}")
+        if v in ("arm64", "aarch64"):
+            return cls.ARM64
+        elif v in ("riscv", "riscv64"):
+            return cls.RISCV
+        elif v in ("x86_64", "amd64"):
+            return cls.X86_64
+        elif v in ("x86", "i386"):
+            return cls.X86
+
+        try:
+            return cls(v)
+        except ValueError:
+            raise ValueError(f"Unknown architecture string: {value}")

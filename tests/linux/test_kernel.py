@@ -8,22 +8,19 @@ import pathlib
 from benchkit.helpers.arch import Arch
 from benchkit.helpers.linux.kernel import Kernel, Moniker
 from benchkit.helpers.version import LinuxVersion
+from benchkit.platforms import get_current_platform
 
 if __name__ == "__main__":
-    # this cannot be tested reliably as the versions are always changing
-    stable_ver: LinuxVersion = (
-        Kernel.latest_version(moniker=Moniker.STABLE)
-        if not (pathlib.Path("build") / "linux-6.18.tar.xz").exists()
-        else LinuxVersion.from_str("6.18")
-    )
-    out_dir: pathlib.Path = pathlib.Path("build")
+    build_dir: pathlib.Path = pathlib.Path("build")
 
-    if not out_dir.exists():
-        os.mkdir(out_dir)
+    if not build_dir.exists():
+        os.mkdir(build_dir)
 
-    kernel: Kernel = Kernel.download_source(
-        version=stable_ver,
-        out_dir=pathlib.Path("build"),
+    kernel: Kernel = Kernel.latest(
+        build_dir=build_dir,
+        moniker=Moniker.LTS,
+        platform=get_current_platform(),
+        download=True,
     )
 
     kernel.make_defconfig(arch=Arch.X86)
