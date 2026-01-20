@@ -248,10 +248,14 @@ class Kernel:
         Load an existing kernel configuration from the source directory.
         """
         config_file: pathlib.Path = self.__source_dir / ".config"
+
         if not config_file.exists():
             raise Exception(f"kernel config file {config_file} does not exist")
 
-        self.config = KConfig.from_file(out=config_file, platform=self.platform)
+        self.config = KConfig.from_file(
+            path=config_file,
+            platform=self.platform,
+        )
 
     def update_config(self, updates: dict[str, KConfigRHS]) -> None:
         self.config.entries.update(updates)

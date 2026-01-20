@@ -105,7 +105,7 @@ class _KConfigEntryTokenStream:
         self._tokens.append(token)  # add the token if no exception was raised
 
     def entry(self) -> KConfigEntry | None:
-        if isinstance(self._tokens[0], _Hashtag):
+        if len(self._tokens) < 3 or isinstance(self._tokens[0], _Hashtag):
             return None
 
         if isinstance(self._tokens[-1], _EOL):
