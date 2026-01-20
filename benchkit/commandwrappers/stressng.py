@@ -20,6 +20,17 @@ class StressNgContext:
         self._cmd: list[str] = ["stress-ng"] + cmds
         self._args: dict[str, Any] = args
         self._platform: Platform = platform
+
+        # NOTE maybe make a generic class to handle common stuff for all commands
+        if "FALSE" in self._platform.comm.shell(
+            command="which stress-ng >/dev/null 2>&1 || echo FALSE",
+            print_curdir=False,
+            print_input=False,
+            print_output=False,
+            shell=True,
+        ):
+            raise Exception("stress-ng is not installed on the target platform")
+
         self._async_process: AsyncProcess | None = None
 
     def add_args(self, args: dict[str, Any]) -> None:
@@ -35,7 +46,7 @@ class StressNgContext:
 
         self._async_process = shell_async(
             command=cmd,
-            stdout_path="/dev/null",  # HACK how to get devnull on non linux
+            stdout_path="/dev/null",  # HACK only works on *nix
             stderr_path="/dev/null",
             platform=self._platform,
             ignore_ret_codes=False,
