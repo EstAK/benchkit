@@ -13,26 +13,26 @@ class __Token:
     def __eq__(self, other) -> bool:
         if not isinstance(other, str):
             return NotImplemented
-        return other == self._inner
+        return other == self._
 
     def __str__(self) -> str:
-        return self._inner
+        return self._
 
 
 class _Quote(__Token):
-    _inner: str = '"'
+    _: str = '"'
 
 
 class _Hashtag(__Token):
-    _inner: str = "#"
+    _: str = "#"
 
 
 class _Equal(__Token):
-    _inner: str = "="
+    _: str = "="
 
 
 class _EOL(__Token):
-    _inner: str = "\n"
+    _: str = "\n"
 
 
 @dataclass
