@@ -13,7 +13,6 @@ import getpass
 import os
 import os.path
 import subprocess
-from abc import ABC, abstractmethod
 from functools import lru_cache
 from pathlib import Path
 from shutil import which
@@ -1046,6 +1045,7 @@ class SSHCommLayer(CommunicationLayer):
         list_hosts = [line.strip() for line in output.splitlines()]
         return list_hosts
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 
 
@@ -1070,3 +1070,5 @@ class StatusAware(ABC):
     def _unchecked_close_comm(self) -> None:
         pass
 >>>>>>> 8c2fe69 (doc)
+=======
+>>>>>>> 375b420 (cleanup)
