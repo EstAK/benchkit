@@ -1044,31 +1044,3 @@ class SSHCommLayer(CommunicationLayer):
         )
         list_hosts = [line.strip() for line in output.splitlines()]
         return list_hosts
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-
-
-class StatusAware(ABC):
-    """
-    Abstract class for communication layers that are aware of their connection status.
-    """
-
-    @abstractmethod
-    def is_open(self) -> bool:
-        pass
-
-    @abstractmethod
-    def start_comm(self) -> None:
-        pass
-
-    @abstractmethod
-    def checked_close_comm(self) -> None:
-        pass
-
-    @abstractmethod
-    def _unchecked_close_comm(self) -> None:
-        pass
->>>>>>> 8c2fe69 (doc)
-=======
->>>>>>> 375b420 (cleanup)

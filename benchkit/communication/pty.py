@@ -13,10 +13,10 @@ Unix-like on a local host.
 
 import os
 import select
-from typing import List
+from typing import List, Optional, Iterable
 
 from benchkit.communication import CommunicationLayer
-from benchkit.utils.types import Command, PathType
+from benchkit.utils.types import Command, Environment, PathType, SplitCommand
 
 CHUNK_SIZE: int = 1024
 

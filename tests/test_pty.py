@@ -14,7 +14,7 @@ from typing import List
 from benchkit.communication.pty import PtyCommLayer
 
 
-def thread(port: pathlib.Path):
+def thread(port: pathlib.Path) -> None:
     decoded: str
     with PtyCommLayer(port=port) as pty:
         out: bytearray = pty.listen(timeout=5.0)  # big timeout to take latencies into account
@@ -22,11 +22,23 @@ def thread(port: pathlib.Path):
             print("nothing was received")
         decoded = out.decode(errors="replace")
 
-    print(decoded)
     assert decoded == "hello\n"
 
 
 if __name__ == "__main__":
+
+    pcheck_socat = subprocess.Popen(
+        "which socat >/dev/null 2>&1 || echo FALSE",
+        shell=True,
+        text=True,
+        stdout=subprocess.PIPE
+    )
+
+    output, _ = pcheck_socat.communicate()
+
+    if "FALSE" in output:
+        raise Exception("socat is not installed on the test platform")
+
     command: List[str] = [
         "socat",
         "-d",
