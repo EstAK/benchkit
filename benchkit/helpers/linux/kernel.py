@@ -119,7 +119,7 @@ class Kernel:
         tar_path: pathlib.Path = build_dir / tar
 
         if not self.platform.comm.path_exists(build_dir):
-            self.platform.comm.mkdir(str(build_dir), parents=True)
+            self.platform.comm.makedirs(str(build_dir))
 
         # a tarball is assumed clean
         if not self.platform.comm.path_exists(tar_path):
