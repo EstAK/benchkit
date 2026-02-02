@@ -98,21 +98,26 @@ class FHSProfile(enum.Enum):
 class FHS:
     profile: FHSProfile
     root: pathlib.Path = pathlib.Path("/")
+    extended: FHSDirs | None = None
 
     def create(
         self,
         platform: Platform,
     ) -> None:
-        if (
-            pathlib.Path("usr") not in self.profile.value.base_dirs
-            and len(self.profile.value.user_subdirs) > 0
-        ):
+        base_dirs: list[pathlib.Path] = self.profile.value.base_dirs
+        user_subdirs: list[pathlib.Path] = self.profile.value.user_subdirs
+
+        if self.extended is not None:
+            base_dirs += self.extended.base_dirs
+            user_subdirs += self.extended.user_subdirs
+
+        if pathlib.Path("usr") not in base_dirs and len(user_subdirs) > 0:
             raise Exception("'usr' must be in base_dirs to create user_subdirs")
 
-        for dir_path in self.profile.value.base_dirs:
-            platform.comm.makedirs(path=self.root / dir_path, exist_ok=True)
+        for dir in base_dirs:
+            platform.comm.makedirs(path=self.root / dir, exist_ok=True)
 
-        for usr_subdir in self.profile.value.user_subdirs:
+        for usr_subdir in user_subdirs:
             platform.comm.makedirs(
                 path=self.root / "usr" / usr_subdir,
                 exist_ok=True,
@@ -191,7 +196,9 @@ class fstab:
         platform: Platform,
         output_path: pathlib.Path,
     ) -> None:
-        lines: list[str] = ["# <file system> <mount point>   <type>  <options>       <dump>  <pass>"]
+        lines: list[str] = [
+            "# <file system> <mount point>   <type>  <options>       <dump>  <pass>"
+        ]
         for entry in self.entries:
             if len(entry.options) == 0:
                 raise Exception("fstab entry must have at least one option")
