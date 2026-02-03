@@ -4,9 +4,10 @@
 Module for the representation of generic platforms that can be derived into actual platforms.
 """
 
-from typing import List
+from typing import List, TypeVar, Generic, Annotated
 
 from benchkit.communication import CommunicationLayer
+from benchkit.communication.uart import StatusAware
 from benchkit.platforms import evenorder
 from benchkit.platforms.utils import (
     get_nb_cpus_active,
@@ -231,7 +232,9 @@ class Platform:
             case "asc":
                 result_ordering = list(range(1, nb_cpus, 1)) + [0]
             case _:
-                raise NotImplementedError(f"Unknown core ordering technique: {provided_order}")
+                raise NotImplementedError(
+                    f"Unknown core ordering technique: {provided_order}"
+                )
 
         return result_ordering
 
@@ -301,3 +304,18 @@ class Platform:
             str: the name of the current user logged in the platform.
         """
         return self.comm.current_user()
+
+
+COMM = TypeVar("COMM", bound=Annotated[CommunicationLayer, StatusAware])
+
+
+class GenericPlatform(Platform, Generic[COMM]):
+    """
+    Represent a generic platform with all the supported calls, excluding the communication layer.
+    """
+
+    def __init__(
+        self,
+        comm_layer: CommunicationLayer,
+    ) -> None:
+        self.comm_layer: COMM = comm_layer  # type: ignore
