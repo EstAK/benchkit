@@ -7,6 +7,7 @@ and an init script for mounting essential filesystems.
 import pathlib
 import enum
 
+from typing import Callable, Self
 from dataclasses import dataclass, field
 
 from benchkit.platforms import Platform
@@ -84,12 +85,33 @@ class FHSDirs:
     )
     user_subdirs: list[pathlib.Path] = field(default_factory=lambda: MINIMAL_USR_DIRS)
 
+    def __contains__(self, item: object) -> bool:
+        """
+        Subset operation
+        """
+        if isinstance(item, FHSProfile):
+            item = item.value
+
+        if isinstance(item, pathlib.Path):
+            return item in self.base_dirs or item in self.user_subdirs
+
+        if isinstance(item, FHSDirs):
+            for dir in item.base_dirs:
+                if dir not in self.base_dirs:
+                    return False
+            for dir in item.user_subdirs:
+                if dir not in self.user_subdirs:
+                    return False
+            return True
+
+        return False
+
 
 class FHSProfile(enum.Enum):
     MINIMAL = FHSDirs()
     STANDARD = FHSDirs(
         base_dirs=MINIMAL_BASE_DIRS
-        + list(map(lambda a: pathlib.Path(a), ["mnt", "tmp"])),
+        + list(map(lambda a: pathlib.Path(a), ["etc", "tmp"])),
         user_subdirs=MINIMAL_USR_DIRS,
     )
 
@@ -125,52 +147,53 @@ class FHS:
 
 
 @dataclass
-class InitBuilder:
-    platform: Platform
-    source_path: pathlib.Path
+class Init:
     shebang: str = "#!/bin/sh"
     commands: list[str] = field(default_factory=list)
 
-    def add_mount(
-        self,
-        mount_point: MountPoint,
-    ) -> None:
-        self.commands.append(" ".join(mount_point.mount_cmd()))
+    @staticmethod
+    def from_fstab(fstab: "fstab") -> Self:
+        init: Init = Init()
+        init.commands.append("mount -a")
+        for entry in fstab.noauto_entries:
+            init.commands.append(" ".join(entry.mount_point.mount_cmd()))
+        return init
 
-    def save(self) -> None:
-        path: pathlib.Path = self.source_path / "init"
-        self.platform.comm.write_content_to_file(
+    def save(
+        self,
+        output_dir: pathlib.Path,
+        platform: Platform,
+        filename: str = "init",
+    ) -> None:
+        path: pathlib.Path = output_dir / filename
+        platform.comm.write_content_to_file(
             output_filename=path,
             content=self.shebang + "\n\n" + "\n".join(self.commands) + "\n",
         )
 
+    def save_with_fhs(
+        self, fhs: FHS, platform: Platform, filename: str = "init"
+    ) -> None:
+        self.save(platform=platform, output_dir=fhs.root, filename=filename)
+
 
 @dataclass
-class Init:
-    source_path: pathlib.Path
-    platform: Platform
-    builder: InitBuilder | None = None
+class InitBuilder:
+    init: Init = field(default_factory=Init)
 
-    @staticmethod
-    def from_fhs(fhs: FHS, platform: Platform) -> "Init":
-        return Init(
-            source_path=fhs.root,
-            platform=platform,
-        )
+    def add_mount(
+        self,
+        mount_point: MountPoint,
+    ) -> Self:
+        self.init.commands.append(" ".join(mount_point.mount_cmd()))
+        return self
 
-    def __enter__(self) -> InitBuilder:
-        self._builder = InitBuilder(
-            source_path=self.source_path,
-            platform=self.platform,
-        )
-        return self._builder
+    def add_cmd(self, cmd: str) -> Self:
+        self.init.commands.append(cmd)
+        return self
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
-        if exc_type is not None:
-            return False  # propagate exception
-
-        assert self._builder is not None
-        self._builder.save()
+    def finalize(self) -> Init:
+        return self.init
 
 
 class fstabPass(enum.IntEnum):
@@ -190,6 +213,13 @@ class fstabEntry:
 @dataclass
 class fstab:
     entries: list[fstabEntry] = field(default_factory=list)
+
+    @property
+    def noauto_entries(self) -> list[fstabEntry]:
+        return [entry for entry in self.entries if "noauto" in entry.options]
+
+    def with_init(self) -> tuple["fstab", Init]:
+        return self, Init.from_fstab(fstab=self)
 
     def save(
         self,
@@ -221,3 +251,21 @@ class fstab:
             output_filename=output_path,
             content="\n".join(lines) + "\n",
         )
+
+
+class BusyboxInit:
+    def __init__(
+        self,
+        fhs: FHS = FHS(
+            profile=FHSProfile.MINIMAL,
+        ),
+    ) -> None:
+        if fhs.profile not in FHSProfile.STANDARD.value:
+            raise Exception("BusyboxInit requires at least a STANDARD FHS profile")
+
+        self.fhs: FHS = fhs
+        self.rcS: Init | None = None
+        self.fstab: fstab | None = None
+
+    def setup_mounts(self, fstab_entries=list[fstabEntry]) -> None:
+        self.fstab, self.rcS = fstab(entries=fstab_entries).with_init()

@@ -71,6 +71,8 @@
 
           pythonToolingPackages = [
             python.pkgs.python-lsp-ruff
+            pkgs.pyright
+            
             python.pkgs.numpy
             python.pkgs.pip
 
@@ -92,7 +94,7 @@
                        ++ pythonToolingPackages
                        ++ formattingPackages
                        ++ linuxKernelPackages
-                       ++ [];
+                       ++ [python.pkgs.pyserial];
           };
 
           # example of a devshell where non free software is required
