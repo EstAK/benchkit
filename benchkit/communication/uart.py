@@ -163,7 +163,6 @@ class UARTCommLayer(CommunicationLayer, StatusAware):
         self.close_comm()  # do not hog the port when not in use
         return ret
 
-
     @property
     def remote_host(self) -> str | None:
         """Returns an identifier (typically hostname) of the remote host, or None if communication
