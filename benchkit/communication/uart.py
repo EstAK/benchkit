@@ -133,7 +133,7 @@ class UARTCommLayer(CommunicationLayer, StatusAware):
             str: the output of the command.
         """
         if not self.is_open():
-            raise RuntimeError("Communication layer is not open.")
+            self.start_comm()
 
         cmd: str = " ".join(command) if isinstance(command, list) else command
 
@@ -153,9 +153,13 @@ class UARTCommLayer(CommunicationLayer, StatusAware):
         if print_output:
             print(ret)
 
+        self.close_comm() # do not hog the port when not in use
         return ret
 
     def __enter__(self) -> "UARTCommLayer":
+        """
+        The context manager is handy when using the UART in "interactive" 
+        """
         self.start_comm()
         return self
 

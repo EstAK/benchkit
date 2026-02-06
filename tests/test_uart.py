@@ -5,6 +5,7 @@
 import pathlib
 
 from benchkit.communication.uart import UARTCommLayer
+from benchkit.platforms.generic import GenericPlatform
 
 if __name__ == "__main__":
     with UARTCommLayer(

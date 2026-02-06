@@ -318,4 +318,4 @@ class GenericPlatform(Platform, Generic[COMM]):
         self,
         comm_layer: CommunicationLayer,
     ) -> None:
-        self.comm_layer: COMM = comm_layer  # type: ignore
+        self._comm_layer: COMM = comm_layer  # type: ignore
