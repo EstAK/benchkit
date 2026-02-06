@@ -162,3 +162,32 @@ class UARTCommLayer(CommunicationLayer, StatusAware):
 
         self.close_comm()  # do not hog the port when not in use
         return ret
+
+
+    @property
+    def remote_host(self) -> str | None:
+        """Returns an identifier (typically hostname) of the remote host, or None if communication
+        happens locally.
+
+        Returns:
+            str | None: name of the remote host or None if communication happens locally.
+        """
+        return None
+
+    @property
+    def is_local(self) -> bool:
+        """Returns whether the communication layer happens locally on the host.
+
+        Returns:
+            bool: whether the communication layer happens locally on the host.
+        """
+        return False
+
+    @property
+    def ip_address(self) -> str:
+        """Returns the IP address of the host.
+
+        Returns:
+            str: IP address of the host.
+        """
+        return ""
