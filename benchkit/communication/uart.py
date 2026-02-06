@@ -3,6 +3,7 @@
 
 from . import CommunicationLayer
 
+import re
 import serial
 import pathlib
 
@@ -58,20 +59,25 @@ class UARTCommLayer(CommunicationLayer, StatusAware):
         self._baudrate: int = baudrate
         self._timeout: float = timeout
         self._ps1: str | None = ps1
-        self._con: serial.Serial | None = None
+
+        self._con: serial.Serial = serial.Serial(
+            baudrate=self._baudrate,
+            timeout=self._timeout,
+        )  # create a closed serial connection
+        self._con.port = str(self._port)
+
+        if self._ps1 is None:
+            self._ps1 = self.shell(
+                command="", print_input=False, print_output=False
+            ).strip()
 
     def is_open(self) -> bool:
-        return self._con is not None
+        return self._con.is_open  # type: ignore
 
     def start_comm(self) -> None:
         if self.is_open():
             raise RuntimeError("Communication layer is already open.")
-
-        self._con = serial.Serial(
-            port=str(self._port),
-            baudrate=self._baudrate,
-            timeout=self._timeout,
-        )
+        self._con.open()
 
     def close_comm(self) -> None:
         if not self.is_open():
@@ -144,8 +150,9 @@ class UARTCommLayer(CommunicationLayer, StatusAware):
 
         if writtren_bytes != len(cmd) + 1:
             raise RuntimeError("Failed to write the full command to UART.")
-
-        ret: str = self._con.readall().decode()  # type: ignore
+        # 7-bit C1 ANSI sequences
+        ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+        ret: str = ansi_escape.sub("", self._con.readall().decode())
         if self._ps1 is not None:
             ret = ret.replace(self._ps1, "")
         ret = ret.replace(cmd, "").strip()
@@ -153,15 +160,5 @@ class UARTCommLayer(CommunicationLayer, StatusAware):
         if print_output:
             print(ret)
 
-        self.close_comm() # do not hog the port when not in use
+        self.close_comm()  # do not hog the port when not in use
         return ret
-
-    def __enter__(self) -> "UARTCommLayer":
-        """
-        The context manager is handy when using the UART in "interactive" 
-        """
-        self.start_comm()
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
-        self.close_comm()

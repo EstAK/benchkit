@@ -21,15 +21,15 @@ class StressNgContext:
         self._args: dict[str, Any] = args
         self._platform: Platform = platform
 
-        # NOTE maybe make a generic class to handle common stuff for all commands
-        if "FALSE" in self._platform.comm.shell(
-            command="which stress-ng >/dev/null 2>&1 || echo FALSE",
-            print_curdir=False,
-            print_input=False,
-            print_output=False,
-            shell=True,
-        ):
-            raise Exception("stress-ng is not installed on the target platform")
+        # FIXME add check for stress-ng, code below is commented out for now
+        # if "FALSE" in self._platform.comm.shell(
+        #     command="which stress-ng >/dev/null 2>&1 || echo FALSE",
+        #     print_curdir=False,
+        #     print_input=False,
+        #     print_output=False,
+        #     shell=True,
+        # ):
+        #     raise Exception("stress-ng is not installed on the target platform")
 
         self._async_process: AsyncProcess | None = None
 
