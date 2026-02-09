@@ -28,9 +28,9 @@ if __name__ == "__main__":
     ):
         time.sleep(10)
     duration: float = time.monotonic() - before
-    target_duration: float = (
-        14.0 if True else 10.0
-    )  # adjust target duration for UART platform
+    target_duration: float = 14.0 if True else 10.0
+    # TODO adjust target duration for UART platform TODO some sort of .config that calibrates the
+    # expected duration for each platform, or maybe even a tolerance range
     assert round(duration, 0) == target_duration, (
         f"Expected duration to be around {target_duration} seconds, but got {duration:.2f} seconds"
     )

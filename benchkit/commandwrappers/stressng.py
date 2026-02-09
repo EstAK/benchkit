@@ -9,10 +9,16 @@ from benchkit.platforms import Platform
 from benchkit.shell.shellasync import shell_async, AsyncProcess
 from benchkit.communication.uart import UARTCommLayer
 
-from typing import Any, Self
+from typing import Any
 
 
 class StressNgContext:
+    """
+    HACK this is a bit hacky, but it allows us to use the same context manager for
+    both UART and generic platforms without having to check the type of the
+    platform every time we want to start or end the stress-ng process
+    """
+
     def __new__(cls, args, cmds, platform):
         cls = (
             UARTStressNgContext
@@ -99,13 +105,13 @@ class GenericStressNgContext(StressNgContext):
         )
 
     def end(self) -> None:
-        if self._async_process is not None:
-            self._platform.comm.signal(
-                pid=self._async_process.pid,
-                signal_code=signal.SIGINT,
-            )
-        else:
+        if self._async_process is None:
             raise Exception("End should not be called without previously calling end")
+
+        self._platform.comm.signal(
+            pid=self._async_process.pid,
+            signal_code=signal.SIGINT,
+        )
 
 
 class UARTStressNgContext(StressNgContext):
@@ -125,13 +131,16 @@ class UARTStressNgContext(StressNgContext):
 
     def start(self) -> None:
         cmd_str: str = " ".join(self.cmd) + " &"
-        ret: str = self._platform.comm.shell(command=cmd_str, print_output=False, shell=True)
+        ret: str = self._platform.comm.shell(
+            command=cmd_str, print_output=False, shell=True
+        )
         ret = " ".join(ret.splitlines()[1::])
 
-        if (match := re.search(r"\[([^\]]+)\]", ret)):
+        if match := re.search(r"\[([^\]]+)\]", ret):
             self._pid = int(match.group(1))
 
-
     def end(self) -> None:
-        self._platform.comm.signal(pid=self._pid, signal_code=signal.SIGINT)
+        if self._pid is None:
+            raise Exception("End should not be called without previously calling start")
 
+        self._platform.comm.signal(pid=self._pid, signal_code=signal.SIGINT)

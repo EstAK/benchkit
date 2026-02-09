@@ -141,7 +141,7 @@ class UARTCommLayer(CommunicationLayer, StatusAware):
         if not self.is_open():
             self.start_comm()
 
-        cmd: str = " ".join(command) if isinstance(command, list) else command
+        cmd: str = " ".join(command) if isinstance(command, (list, tuple)) else command
 
         if print_input:
             print(f"[input]{cmd}")

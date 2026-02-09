@@ -13,9 +13,3 @@ if __name__ == "__main__":
         baudrate=115200,
         timeout=1.0,
     )
-
-    uart.shell(
-        command="which stress-ng >/dev/null 2>&1 || echo FALSE",
-        print_output=True,
-        print_input=False,
-    )
