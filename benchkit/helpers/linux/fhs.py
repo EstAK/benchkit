@@ -62,13 +62,13 @@ DEV = MountPoint(
 
 MINIMAL_BASE_DIRS = list(
     map(
-        lambda a: pathlib.Path(a),
+        pathlib.Path,
         ["bin", "dev", "lib", "sbin", "proc", "sys", "usr"],
     )
 )
 MINIMAL_USR_DIRS = list(
     map(
-        lambda a: pathlib.Path(a),
+        pathlib.Path,
         [
             "bin",
             "sbin",
@@ -110,8 +110,7 @@ class FHSDirs:
 class FHSProfile(enum.Enum):
     MINIMAL = FHSDirs()
     STANDARD = FHSDirs(
-        base_dirs=MINIMAL_BASE_DIRS
-        + list(map(lambda a: pathlib.Path(a), ["etc", "tmp"])),
+        base_dirs=MINIMAL_BASE_DIRS + list(map(pathlib.Path, ["etc", "tmp"])),
         user_subdirs=MINIMAL_USR_DIRS,
     )
 

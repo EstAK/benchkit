@@ -1,9 +1,10 @@
 # Copyright (C) 2026 Vrije Universiteit Brussel. All rights reserved.
 # SPDX-License-Identifier: MIT
 
-from . import CommunicationLayer
+from . import CommunicationLayer, LocalCommLayer, SSHCommLayer
 
 import re
+import types
 import serial
 import pathlib
 
@@ -70,6 +71,20 @@ class UARTCommLayer(CommunicationLayer, StatusAware):
             self._ps1 = self.shell(
                 command="", print_input=False, print_output=False
             ).strip()
+
+    def use_shell(self) -> None:
+        list_of_methods_to_use: list[str] = [
+            "write_content_to_file",
+            "read_file",
+            "file_size",
+            "path_exists",
+        ]
+        for foo in list_of_methods_to_use:
+            setattr(
+                self,
+                foo,
+                types.MethodType(getattr(SSHCommLayer, foo), self),
+            )
 
     def is_open(self) -> bool:
         return self._con.is_open  # type: ignore

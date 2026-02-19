@@ -13,12 +13,6 @@ from typing import Any
 
 
 class StressNgContext:
-    """
-    HACK this is a bit hacky, but it allows us to use the same context manager for
-    both UART and generic platforms without having to check the type of the
-    platform every time we want to start or end the stress-ng process
-    """
-
     def __new__(cls, args, cmds, platform):
         cls = (
             UARTStressNgContext

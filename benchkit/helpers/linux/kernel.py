@@ -29,6 +29,19 @@ from benchkit.platforms import get_current_platform, Platform
 from benchkit.helpers.patch import Patch
 
 
+def get_platform_kernel_version(platform: Platform) -> LinuxVersion:
+    """
+    Get the kernel version of the platform.
+    """
+
+    raw_version: str = platform.comm.shell(
+        command=["uname", "-r"],
+        print_input=False,
+        print_output=False,
+    )
+    return LinuxVersion.from_str(raw_version.strip())
+
+
 class Moniker(enum.Enum):
     MAINLINE = "mainline"
     STABLE = "stable"
@@ -289,7 +302,9 @@ class Kernel:
 
     def save_config(self) -> None:
         if self.source_dir is None or self.config is None:
-            raise Exception("kernel source directory or config is not set, cannot save config")
+            raise Exception(
+                "kernel source directory or config is not set, cannot save config"
+            )
 
         self.config.write_to_file(
             out=self.source_dir / ".config",
