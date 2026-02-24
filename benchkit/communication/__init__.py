@@ -388,7 +388,9 @@ class CommunicationLayer:
             destination: (PathType): The destination path where the file has to be
                                      copied to on the remote.
         """
-        raise NotImplementedError("Copy from host is not implemented for this communication layer")
+        raise NotImplementedError(
+            "Copy from host is not implemented for this communication layer"
+        )
 
     def copy_to_host(self, source: PathType, destination: PathType) -> None:
         """Copy a file to the host (the machine benchkit is run on), from the
@@ -399,7 +401,9 @@ class CommunicationLayer:
             destination: (PathType): The destination path where the file has to be
                                      copied to on the host.
         """
-        raise NotImplementedError("Copy to host is not implemented for this communication layer")
+        raise NotImplementedError(
+            "Copy to host is not implemented for this communication layer"
+        )
 
     def hostname(self) -> str:
         """Get hostname of the target host.
@@ -537,7 +541,9 @@ class CommunicationLayer:
     ) -> bool:
         succeed = True
         try:
-            self.shell(command=f"[ {opt} {path} ]", print_input=False, print_output=False)
+            self.shell(
+                command=f"[ {opt} {path} ]", print_input=False, print_output=False
+            )
         except subprocess.CalledProcessError as cpe:
             if 1 != cpe.returncode:
                 raise cpe
@@ -759,10 +765,12 @@ class SSHCommLayer(CommunicationLayer):
         self,
         host: str,
         environment: Environment,
+        key: Path | None = None,
     ):
         super().__init__()
-        self._host = host
+        self._host: str = host
         self._additional_environment = environment if environment is not None else {}
+        self._key: Path | None = key
 
         self._ssh_host_info = self._get_ssh_info(host=host)
         self._in_ssh_config = self._is_in_ssh_config(host=host)
@@ -975,6 +983,7 @@ class SSHCommLayer(CommunicationLayer):
                 "--progress",
                 "-e",
                 f"ssh -p {port}",
+                "" if self._key is None else f"-i {self._key}",
                 str(source),
                 f"{user}@{hostname}:{destination}",
             ]
@@ -994,6 +1003,7 @@ class SSHCommLayer(CommunicationLayer):
                 "--progress",
                 "-e",
                 f"ssh -p {port}",
+                "" if self._key is None else f"-i {self._key}",
                 f"{user}@{hostname}:{source}",
                 str(destination),
             ]
@@ -1011,9 +1021,12 @@ class SSHCommLayer(CommunicationLayer):
             remote_current_dir=remote_current_dir,
         )
 
-        full_command = ["ssh"] + (["-oControlPath=none"] if establish_new_connection else [])
+        full_command = ["ssh"] + (
+            ["-oControlPath=none"] if establish_new_connection else []
+        )
 
         full_command = full_command + [
+            "" if self._key is None else f"-i {self._key}",
             "-t",
             self._host,
             remote_command,
@@ -1023,8 +1036,12 @@ class SSHCommLayer(CommunicationLayer):
 
     @staticmethod
     def _get_ssh_info(host: str) -> Dict[str, str]:
-        output = shell_out(command=["ssh", "-G", str(host)], print_input=False, print_output=False)
-        ssh_host_info = dict([line.split(" ", maxsplit=1) for line in output.splitlines()])
+        output = shell_out(
+            command=["ssh", "-G", str(host)], print_input=False, print_output=False
+        )
+        ssh_host_info = dict(
+            [line.split(" ", maxsplit=1) for line in output.splitlines()]
+        )
         return ssh_host_info
 
     @staticmethod

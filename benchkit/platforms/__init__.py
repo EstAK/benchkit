@@ -8,6 +8,7 @@ is able to run remote command on the target where the benchmark will run.
 """
 
 import importlib.util
+import pathlib
 import sys
 
 from benchkit.communication import LocalCommLayer, SSHCommLayer
@@ -59,6 +60,7 @@ def get_current_platform() -> Platform:
 def get_remote_platform(
     host: str,
     environment: Environment = None,
+    key: pathlib.Path | None = None,
 ) -> Platform:
     """
     Get a Platform instance corresponding to the provided SSH host.
@@ -89,5 +91,6 @@ def get_remote_platform(
         comm_layer=SSHCommLayer(
             host=host,
             environment=environment,
+            key=key,
         )
     )
