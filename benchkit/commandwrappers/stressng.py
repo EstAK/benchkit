@@ -13,19 +13,23 @@ from typing import Any
 
 
 class StressNgContext:
-    def __new__(cls, args, cmds, platform):
-        cls = (
+    def __new__(cls, args, cmds, platform, raw=False):
+        # Pick subclass
+        chosen_cls = (
             UARTStressNgContext
-            if isinstance(platform.comm, UARTCommLayer)
+            if isinstance(platform.comm, UARTCommLayer) or raw
             else GenericStressNgContext
         )
-        return super().__new__(cls)
+        # Create instance without passing `raw` to subclass
+        instance = super().__new__(chosen_cls)
+        return instance
 
     def __init__(
         self,
         args: dict[str, Any],
         cmds: list[str],
         platform: Platform,
+        raw: bool = False,
     ) -> None:
         self._cmd: list[str] = ["stress-ng"] + cmds
         self._args: dict[str, Any] = args
@@ -83,11 +87,10 @@ class GenericStressNgContext(StressNgContext):
         args: dict[str, Any],
         cmds: list[str],
         platform: Platform,
+        raw: bool = False,
     ) -> None:
         self._async_process: AsyncProcess | None = None
-        self._cmd: list[str] = ["stress-ng"] + cmds
-        self._args: dict[str, Any] = args
-        self._platform: Platform = platform
+        super().__init__(args, cmds, platform)
 
     def start(self) -> None:
         self._async_process = shell_async(
@@ -114,13 +117,9 @@ class UARTStressNgContext(StressNgContext):
         args: dict[str, Any],
         cmds: list[str],
         platform: Platform,
+        raw: bool = False,
     ) -> None:
-        if not isinstance(platform.comm, UARTCommLayer):
-            raise Exception("UARTStressNgContext requires a UART communication layer")
-
-        self._cmd: list[str] = ["stress-ng"] + cmds
-        self._args: dict[str, Any] = args
-        self._platform: Platform = platform
+        super().__init__(args, cmds, platform)
         self._pid: int | None = None
 
     def start(self) -> None:
