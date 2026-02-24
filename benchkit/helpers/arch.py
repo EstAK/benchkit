@@ -34,3 +34,6 @@ class Arch(Enum):
             return cls(v)
         except ValueError:
             raise ValueError(f"Unknown architecture string: {value}")
+
+    def __str__(self) -> str:
+        return self.value
