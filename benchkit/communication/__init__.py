@@ -766,11 +766,13 @@ class SSHCommLayer(CommunicationLayer):
         host: str,
         environment: Environment,
         key: Path | None = None,
+        use_term: bool = True,
     ):
         super().__init__()
         self._host: str = host
         self._additional_environment = environment if environment is not None else {}
         self._key: Path | None = key
+        self._use_term = use_term
 
         self._ssh_host_info = self._get_ssh_info(host=host)
         self._in_ssh_config = self._is_in_ssh_config(host=host)
@@ -983,7 +985,12 @@ class SSHCommLayer(CommunicationLayer):
                 "--progress",
                 "-e",
                 f"ssh -p {port}",
-                "" if self._key is None else f"-i {self._key}",
+            ]
+
+            if self._key:
+                command += ["-i", str(self._key)]
+
+            command += [
                 str(source),
                 f"{user}@{hostname}:{destination}",
             ]
@@ -1003,10 +1010,12 @@ class SSHCommLayer(CommunicationLayer):
                 "--progress",
                 "-e",
                 f"ssh -p {port}",
-                "" if self._key is None else f"-i {self._key}",
-                f"{user}@{hostname}:{source}",
-                str(destination),
             ]
+
+            if self._key:
+                command += ["-i", str(self._key)]
+
+            command += [f"{user}@{hostname}:{source}", str(destination)]
 
         shell_out(command=command)
 
@@ -1025,9 +1034,13 @@ class SSHCommLayer(CommunicationLayer):
             ["-oControlPath=none"] if establish_new_connection else []
         )
 
+        if self._key:
+            full_command += ["-i", str(self._key)]
+
+        if self._use_term:
+            full_command += ["-t"]
+
         full_command = full_command + [
-            "" if self._key is None else f"-i {self._key}",
-            "-t",
             self._host,
             remote_command,
         ]
