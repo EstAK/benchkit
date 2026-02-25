@@ -2,15 +2,18 @@
   description = "Minimal flake for benchkit";
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11";
-    pythainer.url = "github:apaolillo/pythainer";
+    # pythainer = {
+    #   url = "github:apaolillo/pythainer";
+    #   inputs.nixpkgs.follows = "nixpkgs";
+    # };
     dream2nix.url = "github:nix-community/dream2nix";
   };
 
   outputs = {
     self,
-      nixpkgs,
-      dream2nix,
-      pythainer
+    nixpkgs,
+    dream2nix,
+    # pythainer
   }:
     let
       eachSystem = nixpkgs.lib.genAttrs [
@@ -23,8 +26,7 @@
 
       packages = eachSystem (system : {
         default = dream2nix.lib.evalModules {
-          packageSets.nixpkgs = nixpkgs.legacyPackages.${system};
-          packageSets.pythainer = pythainer.packages.${system};
+          packageSets.nixpkgs = import nixpkgs { inherit system; };
           modules = [
             .nix/default.nix
             {
@@ -40,12 +42,11 @@
 
       devShells = eachSystem (system:
         let
-          pkgs = import nixpkgs {inherit system;};
+          pkgs = import nixpkgs { inherit system; };
           benchkit = self.packages.${system}.default;
           python = benchkit.config.deps.python;
 
           benchkitCorePackages = [
-            benchkit.config.deps.pythainerPackage
             benchkit.config.deps.stress-ng
             benchkit.config.deps.tmux
           ];
@@ -64,12 +65,14 @@
             pkgs.ruff 
           ];
         in {
-          core = pkgs.mkShell { # 
-            inputsFrom = [benchkit.devShell]; # 
+          core = pkgs.mkShell {
+            inputsFrom = [benchkit.devShell];
             packages = benchkitCorePackages
                        ++ pythonToolingPackages
                        ++ formattingPackages
-                       ++ [];
+                       ++ [
+                         pkgs.mbed-cli
+                       ];
           };
 
           # example of a devshell where non free software is required

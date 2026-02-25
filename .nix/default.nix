@@ -3,7 +3,6 @@
   lib,
   dream2nix,
   pkgs,
-  pythainer,
   ...
 }: let
   pyproject = lib.importTOML (config.mkDerivation.src + /pyproject.toml);
@@ -14,10 +13,12 @@ in {
   ];
 
   # package dependencies
-  deps = { nixpkgs, pythainer, ... } : {
+  deps = {
+    nixpkgs,
+    ...
+  } : {
 
     python = nixpkgs.python3;
-    pythainerPackage = pythainer.default;
     inherit
       (nixpkgs)
       stress-ng
@@ -29,10 +30,11 @@ in {
   inherit (pyproject.project) name version;
 
   mkDerivation = {
-    nativeBuildInputs = [];
+    nativeBuildInputs = [
+      pkgs.hostname
+    ];
 
     propagatedBuildInputs = [
-      config.deps.pythainerPackage
       config.deps.stress-ng
       config.deps.git
     ];
@@ -57,23 +59,30 @@ in {
   };
 
   pip = {
-    # concatenate both the build system (above) and the requirements.txt
     requirementsList =
-      pyproject.build-system.requires or [] 
-      ++  pyproject.project.dependencies or [];
+      pyproject.build-system.requires or []
+      ++ pyproject.project.dependencies or []
+      ++ [
+        "numpy"
+        "pyserial"
+        "git+https://github.com/apaolillo/pythainer.git"
+      ];
+
     flattenDependencies = true;
 
-    # this is required as the pypi version of docopt makes the build fail
+    overrides.pythainer = {
+      buildPythonPackage.pyproject = true;
+      mkDerivation.nativeBuildInputs = [ config.deps.python.pkgs.hatchling ];
+    };
+
     overrides.docopt = {
       buildPythonPackage.pyproject = true;
-      mkDerivation.buildInputs = [config.deps.python.pkgs.setuptools];
+      mkDerivation.buildInputs = [ config.deps.python.pkgs.setuptools ];
     };
 
     overrides.wget = {
       buildPythonPackage.pyproject = true;
-      mkDerivation.buildInputs = [config.deps.python.pkgs.setuptools];
+      mkDerivation.buildInputs = [ config.deps.python.pkgs.setuptools ];
     };
   };
-
-
 }
