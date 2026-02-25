@@ -13,3 +13,11 @@ if __name__ == "__main__":
         baudrate=115200,
         timeout=1.0,
     )
+    uart.use_shell()
+
+    with open("log.txt", "r") as f:
+        raw = "\n".join(f.readlines())
+        uart.write_content_to_file(
+            content=raw,
+            output_filename="/tmp/hello.txt",
+        )

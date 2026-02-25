@@ -1,7 +1,7 @@
 # Copyright (C) 2026 Vrije Universiteit Brussel. All rights reserved.
 # SPDX-License-Identifier: MIT
 
-from . import CommunicationLayer, LocalCommLayer, SSHCommLayer
+from . import CommunicationLayer, SSHCommLayer
 
 import re
 import types
@@ -11,6 +11,15 @@ import pathlib
 from typing import Iterable
 
 from benchkit.utils.types import Command, PathType, Environment
+
+
+def enable_ppp(
+    host_comm: CommunicationLayer,
+    remote_comm: CommunicationLayer,
+    local_ip: str,
+    remote_ip: str,
+) -> None:
+    return None
 
 
 class StatusAware:
@@ -59,6 +68,7 @@ class UARTCommLayer(CommunicationLayer, StatusAware):
         self._port: pathlib.Path = port
         self._baudrate: int = baudrate
         self._timeout: float = timeout
+        self._is_shell: bool = False
         self._ps1: str | None = ps1
 
         self._con: serial.Serial = serial.Serial(
@@ -72,19 +82,30 @@ class UARTCommLayer(CommunicationLayer, StatusAware):
                 command="", print_input=False, print_output=False
             ).strip()
 
+
+    def read_file(
+        self,
+        path: PathType,
+    ) -> str:
+        pass
+
     def use_shell(self) -> None:
+        self._is_shell = True
         list_of_methods_to_use: list[str] = [
-            "write_content_to_file",
-            "read_file",
             "file_size",
             "path_exists",
         ]
+        # HACK we dynamically add the methods of SSHCommLayer to this class, as
+        # they are close to what it would be to implement them for UART
         for foo in list_of_methods_to_use:
             setattr(
                 self,
                 foo,
                 types.MethodType(getattr(SSHCommLayer, foo), self),
             )
+
+    def use_ppp(self, local_ip: str, remote_ip: str) -> SSHCommLayer:
+        return NotImplemented
 
     def is_open(self) -> bool:
         return self._con.is_open  # type: ignore
