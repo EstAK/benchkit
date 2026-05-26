@@ -19,7 +19,7 @@ class SemanticVersion:
     revision: str = ""  # not used for comparison
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, Self):
+        if not isinstance(other, SemanticVersion):
             return NotImplemented
 
         return (
